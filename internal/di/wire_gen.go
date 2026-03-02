@@ -8,9 +8,9 @@ package di
 
 import (
 	"perfect-pic-server/internal/config"
-	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/handler"
 	"perfect-pic-server/internal/pkg/captcha"
+	"perfect-pic-server/internal/pkg/database"
 	"perfect-pic-server/internal/pkg/redis"
 	"perfect-pic-server/internal/repository"
 	"perfect-pic-server/internal/router"
@@ -22,26 +22,26 @@ import (
 // Injectors from wire.go:
 
 func InitializeApplication() (*Application, error) {
-	gormDB, err := db.NewGormDB()
+	db, err := database.NewGormDB()
 	if err != nil {
 		return nil, err
 	}
-	settingStore := repository.NewSettingRepository(gormDB)
+	settingStore := repository.NewSettingRepository(db)
 	dbConfig := config.NewDBConfig(settingStore)
 	authService := service.NewAuthService(dbConfig)
 	captchaCaptcha := captcha.NewCaptcha(dbConfig)
-	userStore := repository.NewUserRepository(gormDB)
+	userStore := repository.NewUserRepository(db)
 	client := redis.NewRedisClient()
 	userService := service.NewUserService(userStore, dbConfig, client)
 	emailService := service.NewEmailService(dbConfig)
-	systemStore := repository.NewSystemRepository(gormDB)
+	systemStore := repository.NewSystemRepository(db)
 	initService := service.NewInitService(systemStore, dbConfig)
 	authUseCase := app.NewAuthUseCase(authService, userStore, userService, emailService, initService, dbConfig)
-	passkeyStore := repository.NewPasskeyRepository(gormDB)
+	passkeyStore := repository.NewPasskeyRepository(db)
 	passkeyService := service.NewPasskeyService(passkeyStore, dbConfig, client)
 	passkeyUseCase := app.NewPasskeyUseCase(passkeyService, passkeyStore, authService, userStore)
 	authHandler := handler.NewAuthHandler(authService, captchaCaptcha, authUseCase, initService, dbConfig, passkeyUseCase)
-	imageStore := repository.NewImageRepository(gormDB)
+	imageStore := repository.NewImageRepository(db)
 	statUseCase := admin.NewStatUseCase(imageStore, userStore)
 	systemHandler := handler.NewSystemHandler(initService, statUseCase, dbConfig, userService)
 	settingsService := service.NewSettingsService(settingStore, dbConfig)
@@ -53,7 +53,7 @@ func InitializeApplication() (*Application, error) {
 	imageUseCase := app.NewImageUseCase(imageService, userService, userStore, dbConfig)
 	userHandler := handler.NewUserHandler(userService, userUseCase, userManageUseCase, imageService, imageUseCase, authService, passkeyService, passkeyUseCase, client)
 	imageHandler := handler.NewImageHandler(imageService, imageUseCase)
-	routerRouter := router.NewRouter(authHandler, systemHandler, settingsHandler, userHandler, imageHandler, dbConfig, gormDB, client)
-	application := NewApplication(routerRouter, dbConfig, gormDB, client)
+	routerRouter := router.NewRouter(authHandler, systemHandler, settingsHandler, userHandler, imageHandler, dbConfig, db, client)
+	application := NewApplication(routerRouter, dbConfig, db, client)
 	return application, nil
 }
