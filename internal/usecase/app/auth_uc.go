@@ -6,6 +6,7 @@ import (
 	"perfect-pic-server/internal/common/httpx"
 	"perfect-pic-server/internal/consts"
 	"perfect-pic-server/internal/model"
+	"perfect-pic-server/internal/pkg/jwt"
 	"perfect-pic-server/internal/utils"
 	"time"
 
@@ -86,7 +87,7 @@ func (c *AuthUseCase) RegisterUser(username, password, email string) error {
 		return httpx.NewAuthError(httpx.AuthErrorInternal, "注册失败，请稍后重试")
 	}
 
-	verifyToken, err := utils.GenerateEmailToken(newUser.ID, newUser.Email, 30*time.Minute)
+	verifyToken, err := jwt.GenerateEmailToken(newUser.ID, newUser.Email, 30*time.Minute)
 	if err != nil {
 		return httpx.NewAuthError(httpx.AuthErrorInternal, "注册失败，请稍后重试")
 	}
@@ -112,7 +113,7 @@ func (c *AuthUseCase) RegisterUser(username, password, email string) error {
 // VerifyEmail 验证邮箱激活令牌。
 // 返回值第一个参数为 true 表示该邮箱已是验证状态。
 func (c *AuthUseCase) VerifyEmail(token string) (bool, error) {
-	claims, err := utils.ParseEmailToken(token)
+	claims, err := jwt.ParseEmailToken(token)
 	if err != nil {
 		return false, httpx.NewAuthError(httpx.AuthErrorValidation, "验证链接已失效或不正确")
 	}

@@ -13,6 +13,7 @@ import (
 	"net/url"
 	commonpkg "perfect-pic-server/internal/common"
 	"perfect-pic-server/internal/consts"
+	redis2 "perfect-pic-server/internal/pkg/redis"
 	"strconv"
 	"strings"
 	"sync"
@@ -119,7 +120,7 @@ func (s *PasskeyService) StorePasskeySession(sessionType consts.PasskeySessionTy
 	}
 
 	// Redis 可用时优先写入 Redis，支持多实例共享会话。
-	if storePasskeySessionInRedis(sessionID, entry) {
+	if storePasskeySessionInRedis(s.redisDB, sessionID, entry) {
 		return sessionID, nil
 	}
 
@@ -128,8 +129,7 @@ func (s *PasskeyService) StorePasskeySession(sessionType consts.PasskeySessionTy
 	return sessionID, nil
 }
 
-func storePasskeySessionInRedis(sessionID string, entry passkeySessionEntry) bool {
-	redisClient := GetRedisClient()
+func storePasskeySessionInRedis(redisClient *redis.Client, sessionID string, entry passkeySessionEntry) bool {
 	if redisClient == nil {
 		return false
 	}
@@ -143,7 +143,7 @@ func storePasskeySessionInRedis(sessionID string, entry passkeySessionEntry) boo
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
-	key := RedisKey("passkey", "session", sessionID)
+	key := redis2.RedisKey("passkey", "session", sessionID)
 	if err := redisClient.Set(ctx, key, payload, consts.PasskeySessionTTL).Err(); err != nil {
 		log.Printf("⚠️ Redis 写入 Passkey 会话失败，回退内存会话: %v", err)
 		return false
@@ -160,7 +160,7 @@ func storePasskeySessionInMemory(sessionID string, entry passkeySessionEntry) {
 
 // ConsumePasskeyLoginSession 读取并消费登录会话，仅返回 WebAuthn 校验所需的 SessionData。
 func (s *PasskeyService) ConsumePasskeyLoginSession(sessionID string) (*webauthn.SessionData, error) {
-	entry, err := consumePasskeySessionEntry(sessionID, consts.PasskeySessionLogin)
+	entry, err := consumePasskeySessionEntry(s.redisDB, sessionID, consts.PasskeySessionLogin)
 	if err != nil {
 		return nil, err
 	}
@@ -169,7 +169,7 @@ func (s *PasskeyService) ConsumePasskeyLoginSession(sessionID string) (*webauthn
 
 // ConsumePasskeyRegistrationSession 读取并消费注册会话，并校验会话归属用户。
 func (s *PasskeyService) ConsumePasskeyRegistrationSession(sessionID string, userID uint) (*webauthn.SessionData, error) {
-	entry, err := consumePasskeySessionEntry(sessionID, consts.PasskeySessionRegistration)
+	entry, err := consumePasskeySessionEntry(s.redisDB, sessionID, consts.PasskeySessionRegistration)
 	if err != nil {
 		return nil, err
 	}
@@ -181,13 +181,13 @@ func (s *PasskeyService) ConsumePasskeyRegistrationSession(sessionID string, use
 }
 
 // consumePasskeySessionEntry 读取并消费底层会话条目，负责类型与过期校验。
-func consumePasskeySessionEntry(sessionID string, expectedType consts.PasskeySessionType) (*passkeySessionEntry, error) {
+func consumePasskeySessionEntry(redisClient *redis.Client, sessionID string, expectedType consts.PasskeySessionType) (*passkeySessionEntry, error) {
 	if strings.TrimSpace(sessionID) == "" {
 		return nil, commonpkg.NewValidationError("session_id 不能为空")
 	}
 
 	// Redis 可用时优先从 Redis 原子读取并删除；未命中再回退本地内存。
-	entry, err := consumePasskeySessionEntryFromRedis(sessionID)
+	entry, err := consumePasskeySessionEntryFromRedis(redisClient, sessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -209,8 +209,7 @@ func consumePasskeySessionEntry(sessionID string, expectedType consts.PasskeySes
 	return entry, nil
 }
 
-func consumePasskeySessionEntryFromRedis(sessionID string) (*passkeySessionEntry, error) {
-	redisClient := GetRedisClient()
+func consumePasskeySessionEntryFromRedis(redisClient *redis.Client, sessionID string) (*passkeySessionEntry, error) {
 	if redisClient == nil {
 		return nil, nil
 	}
@@ -218,7 +217,7 @@ func consumePasskeySessionEntryFromRedis(sessionID string) (*passkeySessionEntry
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
-	key := RedisKey("passkey", "session", sessionID)
+	key := redis2.RedisKey("passkey", "session", sessionID)
 	payload, err := redisClient.GetDel(ctx, key).Result()
 	if err != nil {
 		if errors.Is(err, redis.Nil) {

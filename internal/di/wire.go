@@ -7,6 +7,7 @@ import (
 	"perfect-pic-server/internal/config"
 	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/handler"
+	"perfect-pic-server/internal/pkg/redis"
 	"perfect-pic-server/internal/repository"
 	"perfect-pic-server/internal/router"
 	"perfect-pic-server/internal/service"
@@ -19,6 +20,7 @@ import (
 func InitializeApplication() (*Application, error) {
 	wire.Build(
 		db.NewGormDB,
+		redis.NewRedisClient,
 		repository.NewUserRepository,
 		repository.NewImageRepository,
 		repository.NewSettingRepository,

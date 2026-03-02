@@ -13,6 +13,8 @@ import (
 	"perfect-pic-server/internal/consts"
 	moduledto "perfect-pic-server/internal/dto"
 	"perfect-pic-server/internal/model"
+	"perfect-pic-server/internal/pkg/jwt"
+	redis2 "perfect-pic-server/internal/pkg/redis"
 	"perfect-pic-server/internal/utils"
 	"strconv"
 	"time"
@@ -39,18 +41,18 @@ func (s *UserService) GenerateForgetPasswordToken(userID uint) (string, error) {
 		ExpiresAt: time.Now().Add(15 * time.Minute),
 	}
 
-	if redisClient := GetRedisClient(); redisClient != nil {
+	if redisClient := s.redisDB; redisClient != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 		defer cancel()
 
 		// 保证一个用户只有一个有效 token
-		userKey := RedisKey("password_reset", "user", strconv.FormatUint(uint64(userID), 10))
+		userKey := redis2.RedisKey("password_reset", "user", strconv.FormatUint(uint64(userID), 10))
 		if oldToken, err := redisClient.Get(ctx, userKey).Result(); err == nil && oldToken != "" {
-			oldTokenKey := RedisKey("password_reset", "token", oldToken)
+			oldTokenKey := redis2.RedisKey("password_reset", "token", oldToken)
 			_ = redisClient.Del(ctx, oldTokenKey).Err()
 		}
 
-		tokenKey := RedisKey("password_reset", "token", token)
+		tokenKey := redis2.RedisKey("password_reset", "token", token)
 		if err := redisClient.Set(ctx, tokenKey, strconv.FormatUint(uint64(userID), 10), 15*time.Minute).Err(); err == nil {
 			if err2 := redisClient.Set(ctx, userKey, token, 15*time.Minute).Err(); err2 == nil {
 				return token, nil
@@ -77,11 +79,11 @@ func (s *UserService) GenerateForgetPasswordToken(userID uint) (string, error) {
 
 // VerifyForgetPasswordToken 验证忘记密码 Token
 func (s *UserService) VerifyForgetPasswordToken(token string) (uint, bool) {
-	if redisClient := GetRedisClient(); redisClient != nil {
+	if redisClient := s.redisDB; redisClient != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 		defer cancel()
 
-		tokenKey := RedisKey("password_reset", "token", token)
+		tokenKey := redis2.RedisKey("password_reset", "token", token)
 		uidStr, err := redisClient.Get(ctx, tokenKey).Result()
 		if err == nil {
 			uid, parseErr := strconv.ParseUint(uidStr, 10, 64)
@@ -91,7 +93,7 @@ func (s *UserService) VerifyForgetPasswordToken(token string) (uint, bool) {
 					_ = redisClient.Del(ctx, tokenKey).Err()
 					return 0, false
 				}
-				userKey := RedisKey("password_reset", "user", strconv.FormatUint(uid, 10))
+				userKey := redis2.RedisKey("password_reset", "user", strconv.FormatUint(uid, 10))
 				casErr := verifyAndConsumeRedisTokenPair(ctx, redisClient, tokenKey, userKey, token, uidStr)
 				if casErr == nil {
 					return uint(uid), true
@@ -154,14 +156,14 @@ func (s *UserService) GenerateEmailChangeToken(userID uint, oldEmail, newEmail s
 		ExpiresAt: time.Now().Add(30 * time.Minute),
 	}
 
-	if redisClient := GetRedisClient(); redisClient != nil {
+	if redisClient := s.redisDB; redisClient != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 		defer cancel()
 
 		// 保证一个用户只有一个有效 token
-		userKey := RedisKey("email_change", "user", strconv.FormatUint(uint64(userID), 10))
+		userKey := redis2.RedisKey("email_change", "user", strconv.FormatUint(uint64(userID), 10))
 		if oldToken, err := redisClient.Get(ctx, userKey).Result(); err == nil && oldToken != "" {
-			oldTokenKey := RedisKey("email_change", "token", oldToken)
+			oldTokenKey := redis2.RedisKey("email_change", "token", oldToken)
 			_ = redisClient.Del(ctx, oldTokenKey).Err()
 		}
 
@@ -174,7 +176,7 @@ func (s *UserService) GenerateEmailChangeToken(userID uint, oldEmail, newEmail s
 			return "", err
 		}
 
-		tokenKey := RedisKey("email_change", "token", token)
+		tokenKey := redis2.RedisKey("email_change", "token", token)
 		if err := redisClient.Set(ctx, tokenKey, payload, 30*time.Minute).Err(); err == nil {
 			if err2 := redisClient.Set(ctx, userKey, token, 30*time.Minute).Err(); err2 == nil {
 				return token, nil
@@ -207,11 +209,11 @@ func (s *UserService) VerifyEmailChangeToken(token string) (*moduledto.EmailChan
 		return nil, false
 	}
 
-	if redisClient := GetRedisClient(); redisClient != nil {
+	if redisClient := s.redisDB; redisClient != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 		defer cancel()
 
-		tokenKey := RedisKey("email_change", "token", token)
+		tokenKey := redis2.RedisKey("email_change", "token", token)
 		raw, err := redisClient.Get(ctx, tokenKey).Result()
 		if err == nil && raw != "" {
 			var payload moduledto.EmailChangeRedisPayload
@@ -220,7 +222,7 @@ func (s *UserService) VerifyEmailChangeToken(token string) (*moduledto.EmailChan
 				return nil, false
 			}
 
-			userKey := RedisKey("email_change", "user", strconv.FormatUint(uint64(payload.UserID), 10))
+			userKey := redis2.RedisKey("email_change", "user", strconv.FormatUint(uint64(payload.UserID), 10))
 			casErr := verifyAndConsumeRedisTokenPair(ctx, redisClient, tokenKey, userKey, token, raw)
 			if casErr == nil {
 				return &moduledto.EmailChangeToken{
@@ -334,7 +336,7 @@ func (s *UserService) UpdateUsernameAndGenerateToken(userID uint, newUsername st
 	}
 
 	cfg := config.Get()
-	token, err := utils.GenerateLoginToken(userID, newUsername, isAdmin, time.Hour*time.Duration(cfg.JWT.ExpirationHours))
+	token, err := jwt.GenerateLoginToken(userID, newUsername, isAdmin, time.Hour*time.Duration(cfg.JWT.ExpirationHours))
 	if err != nil {
 		return "", commonpkg.NewInternalError("更新失败")
 	}

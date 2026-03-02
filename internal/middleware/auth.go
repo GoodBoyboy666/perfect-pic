@@ -5,8 +5,8 @@ import (
 	"errors"
 	"net/http"
 	"perfect-pic-server/internal/model"
-	"perfect-pic-server/internal/service"
-	"perfect-pic-server/internal/utils"
+	"perfect-pic-server/internal/pkg/jwt"
+	redis2 "perfect-pic-server/internal/pkg/redis"
 	"strconv"
 	"strings"
 	"sync"
@@ -31,13 +31,13 @@ type cachedStatus struct {
 }
 
 // ClearUserStatusCache 清除指定用户的状态缓存
-func ClearUserStatusCache(userID uint) {
+func ClearUserStatusCache(redisClient *redis.Client, userID uint) {
 	statusCache.Delete(userID)
 
-	if redisClient := service.GetRedisClient(); redisClient != nil {
+	if redisClient != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 		defer cancel()
-		key := service.RedisKey("auth", "user_status", strconv.FormatUint(uint64(userID), 10))
+		key := redis2.RedisKey("auth", "user_status", strconv.FormatUint(uint64(userID), 10))
 		_ = redisClient.Del(ctx, key).Err()
 	}
 }
@@ -61,7 +61,7 @@ func JWTAuth() gin.HandlerFunc {
 		}
 
 		//解析 Token
-		claims, err := utils.ParseLoginToken(parts[1])
+		claims, err := jwt.ParseLoginToken(parts[1])
 		if err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Token 无效或已过期"})
 			c.Abort()
@@ -78,7 +78,7 @@ func JWTAuth() gin.HandlerFunc {
 // UserStatusCheck 检查用户状态是否被封禁
 //
 //nolint:gocyclo
-func UserStatusCheck(gormDB *gorm.DB) gin.HandlerFunc {
+func UserStatusCheck(gormDB *gorm.DB, redisClient *redis.Client) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if gormDB == nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库未初始化"})
@@ -107,11 +107,11 @@ func UserStatusCheck(gormDB *gorm.DB) gin.HandlerFunc {
 		)
 
 		// 优先从 Redis 读取
-		if redisClient := service.GetRedisClient(); redisClient != nil {
+		if redisClient != nil {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 			defer cancel()
 
-			key := service.RedisKey("auth", "user_status", strconv.FormatUint(uint64(uid), 10))
+			key := redis2.RedisKey("auth", "user_status", strconv.FormatUint(uint64(uid), 10))
 			cachedStatusStr, err := redisClient.Get(ctx, key).Result()
 			if err == nil {
 				if parsedStatus, parseErr := strconv.Atoi(cachedStatusStr); parseErr == nil {
@@ -163,11 +163,11 @@ func UserStatusCheck(gormDB *gorm.DB) gin.HandlerFunc {
 				ExpiresAt: time.Now().Add(statusCacheTTL),
 			})
 
-			if redisClient := service.GetRedisClient(); redisClient != nil {
+			if redisClient != nil {
 				ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 				defer cancel()
 
-				key := service.RedisKey("auth", "user_status", strconv.FormatUint(uint64(uid), 10))
+				key := redis2.RedisKey("auth", "user_status", strconv.FormatUint(uint64(uid), 10))
 				_ = redisClient.Set(ctx, key, strconv.Itoa(currentStatus), statusCacheTTL).Err()
 			}
 		}

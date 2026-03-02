@@ -45,12 +45,12 @@ func setupTestDB(t *testing.T) *gorm.DB {
 	dbConfig := config.NewDBConfig(settingStore)
 
 	authService := NewAuthService(dbConfig)
-	userService := NewUserService(userStore, dbConfig)
+	userService := NewUserService(userStore, dbConfig, nil)
 	imageService := NewImageService(imageStore, dbConfig)
 	emailService := NewEmailService(dbConfig)
 	captchaService := NewCaptchaService(dbConfig)
 	initService := NewInitService(systemStore, dbConfig)
-	passkeyService := NewPasskeyService(passkeyStore, dbConfig)
+	passkeyService := NewPasskeyService(passkeyStore, dbConfig, nil)
 
 	testService = &Service{
 		dbConfig:       dbConfig,

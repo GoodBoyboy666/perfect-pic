@@ -12,7 +12,7 @@ import (
 	"net/url"
 	"perfect-pic-server/internal/consts"
 	moduledto "perfect-pic-server/internal/dto"
-	"perfect-pic-server/internal/utils"
+	"perfect-pic-server/internal/pkg/captcha"
 	"strings"
 	"time"
 )
@@ -202,7 +202,7 @@ func verifyImageCaptcha(captchaID, captchaAnswer string) (bool, string) {
 		return false, "验证码不能为空"
 	}
 
-	if !utils.VerifyCaptcha(captchaID, captchaAnswer) {
+	if !captcha.VerifyCaptcha(captchaID, captchaAnswer) {
 		return false, "验证码错误或已过期"
 	}
 

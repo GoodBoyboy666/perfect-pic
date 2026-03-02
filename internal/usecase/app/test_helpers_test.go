@@ -56,12 +56,12 @@ func setupAppFixture(t *testing.T) *appFixture {
 	dbConfig.ClearCache()
 
 	authService := service.NewAuthService(dbConfig)
-	userService := service.NewUserService(userStore, dbConfig)
+	userService := service.NewUserService(userStore, dbConfig, nil)
 	imageService := service.NewImageService(imageStore, dbConfig)
 	emailService := service.NewEmailService(dbConfig)
 	captchaService := service.NewCaptchaService(dbConfig)
 	initService := service.NewInitService(systemStore, dbConfig)
-	passkeyService := service.NewPasskeyService(passkeyStore, dbConfig)
+	passkeyService := service.NewPasskeyService(passkeyStore, dbConfig, nil)
 
 	authUC := NewAuthUseCase(authService, userStore, userService, emailService, initService, dbConfig)
 	userUC := NewUserUseCase(userService, userStore, emailService, dbConfig)

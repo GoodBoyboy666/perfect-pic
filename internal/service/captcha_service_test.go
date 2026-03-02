@@ -6,11 +6,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	moduledto "perfect-pic-server/internal/dto"
+	"perfect-pic-server/internal/pkg/captcha"
 	"testing"
 
 	"perfect-pic-server/internal/consts"
 	"perfect-pic-server/internal/model"
-	"perfect-pic-server/internal/utils"
 )
 
 // 测试内容：验证默认验证码提供方为图片验证码。
@@ -105,7 +105,7 @@ func TestVerifyCaptchaChallenge_ImageProviderValidates(t *testing.T) {
 		t.Fatalf("期望 failure for empty captcha fields，实际为 ok=%v msg=%q", ok, msg)
 	}
 
-	id, _, answer, err := utils.MakeCaptcha()
+	id, _, answer, err := captcha.MakeCaptcha()
 	if err != nil {
 		t.Fatalf("MakeCaptcha: %v", err)
 	}

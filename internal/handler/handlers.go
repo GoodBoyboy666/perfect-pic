@@ -5,6 +5,8 @@ import (
 	"perfect-pic-server/internal/service"
 	"perfect-pic-server/internal/usecase/admin"
 	"perfect-pic-server/internal/usecase/app"
+
+	"github.com/redis/go-redis/v9"
 )
 
 type AuthHandler struct {
@@ -25,6 +27,7 @@ type UserHandler struct {
 	authService       *service.AuthService
 	passkeyService    *service.PasskeyService
 	passkeyUseCase    *app.PasskeyUseCase
+	redisDB           *redis.Client
 }
 
 type ImageHandler struct {
@@ -71,6 +74,7 @@ func NewUserHandler(
 	authService *service.AuthService,
 	passkeyService *service.PasskeyService,
 	passkeyUseCase *app.PasskeyUseCase,
+	redisDB *redis.Client,
 ) *UserHandler {
 	return &UserHandler{
 		userService:       userService,
@@ -81,6 +85,7 @@ func NewUserHandler(
 		authService:       authService,
 		passkeyService:    passkeyService,
 		passkeyUseCase:    passkeyUseCase,
+		redisDB:           redisDB,
 	}
 }
 

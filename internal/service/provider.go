@@ -4,6 +4,8 @@ import (
 	"perfect-pic-server/internal/config"
 	repo "perfect-pic-server/internal/repository"
 	"sync"
+
+	"github.com/redis/go-redis/v9"
 )
 
 type AuthService struct {
@@ -13,6 +15,7 @@ type AuthService struct {
 type UserService struct {
 	userStore repo.UserStore
 	dbConfig  *config.DBConfig
+	redisDB   *redis.Client
 
 	passwordResetStore      sync.Map
 	passwordResetTokenStore sync.Map
@@ -41,6 +44,7 @@ type InitService struct {
 type PasskeyService struct {
 	dbConfig     *config.DBConfig
 	passkeyStore repo.PasskeyStore
+	redisDB      *redis.Client
 }
 
 type SettingsService struct {
@@ -52,8 +56,8 @@ func NewAuthService(dbConfig *config.DBConfig) *AuthService {
 	return &AuthService{dbConfig: dbConfig}
 }
 
-func NewUserService(userStore repo.UserStore, dbConfig *config.DBConfig) *UserService {
-	return &UserService{userStore: userStore, dbConfig: dbConfig}
+func NewUserService(userStore repo.UserStore, dbConfig *config.DBConfig, redisDB *redis.Client) *UserService {
+	return &UserService{userStore: userStore, dbConfig: dbConfig, redisDB: redisDB}
 }
 
 func NewImageService(imageStore repo.ImageStore, dbConfig *config.DBConfig) *ImageService {
@@ -72,8 +76,8 @@ func NewInitService(systemStore repo.SystemStore, dbConfig *config.DBConfig) *In
 	return &InitService{systemStore: systemStore, dbConfig: dbConfig}
 }
 
-func NewPasskeyService(passkeyStore repo.PasskeyStore, dbConfig *config.DBConfig) *PasskeyService {
-	return &PasskeyService{passkeyStore: passkeyStore, dbConfig: dbConfig}
+func NewPasskeyService(passkeyStore repo.PasskeyStore, dbConfig *config.DBConfig, redisDB *redis.Client) *PasskeyService {
+	return &PasskeyService{passkeyStore: passkeyStore, dbConfig: dbConfig, redisDB: redisDB}
 }
 
 func NewSettingsService(settingStore repo.SettingStore, dbConfig *config.DBConfig) *SettingsService {

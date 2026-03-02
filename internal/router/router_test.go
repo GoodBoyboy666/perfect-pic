@@ -32,11 +32,11 @@ func TestInitRouter_RegistersCoreRoutes(t *testing.T) {
 
 	authService := service.NewAuthService(dbConfig)
 	captchaService := service.NewCaptchaService(dbConfig)
-	userService := service.NewUserService(userStore, dbConfig)
+	userService := service.NewUserService(userStore, dbConfig, nil)
 	imageService := service.NewImageService(imageStore, dbConfig)
 	emailService := service.NewEmailService(dbConfig)
 	initService := service.NewInitService(systemStore, dbConfig)
-	passkeyService := service.NewPasskeyService(passkeyStore, dbConfig)
+	passkeyService := service.NewPasskeyService(passkeyStore, dbConfig, nil)
 	settingsService := service.NewSettingsService(settingStore, dbConfig)
 
 	authUseCase := appuc.NewAuthUseCase(authService, userStore, userService, emailService, initService, dbConfig)
@@ -50,9 +50,9 @@ func TestInitRouter_RegistersCoreRoutes(t *testing.T) {
 	authHandler := handler.NewAuthHandler(authService, captchaService, authUseCase, initService, dbConfig, passkeyUseCase)
 	systemHandler := handler.NewSystemHandler(initService, statUseCase, dbConfig, userService)
 	settingsHandler := handler.NewSettingsHandler(settingsService, settingsUseCase)
-	userHandler := handler.NewUserHandler(userService, userUseCase, userManageUseCase, imageService, imageUseCase, authService, passkeyService, passkeyUseCase)
+	userHandler := handler.NewUserHandler(userService, userUseCase, userManageUseCase, imageService, imageUseCase, authService, passkeyService, passkeyUseCase, nil)
 	imageHandler := handler.NewImageHandler(imageService, imageUseCase)
-	rt := NewRouter(authHandler, systemHandler, settingsHandler, userHandler, imageHandler, dbConfig, gdb)
+	rt := NewRouter(authHandler, systemHandler, settingsHandler, userHandler, imageHandler, dbConfig, gdb, nil)
 
 	r := gin.New()
 	rt.Init(r)

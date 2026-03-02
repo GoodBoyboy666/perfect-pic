@@ -4,7 +4,7 @@ import (
 	"perfect-pic-server/internal/common/httpx"
 	"perfect-pic-server/internal/consts"
 	"perfect-pic-server/internal/model"
-	"perfect-pic-server/internal/utils"
+	"perfect-pic-server/internal/pkg/jwt"
 	"testing"
 	"time"
 
@@ -72,7 +72,7 @@ func TestAuthUseCase_VerifyEmail_SetsVerifiedAndAlreadyVerified(t *testing.T) {
 		t.Fatalf("create user failed: %v", err)
 	}
 
-	token, err := utils.GenerateEmailToken(u.ID, u.Email, time.Hour)
+	token, err := jwt.GenerateEmailToken(u.ID, u.Email, time.Hour)
 	if err != nil {
 		t.Fatalf("GenerateEmailToken failed: %v", err)
 	}
@@ -121,7 +121,7 @@ func TestAuthUseCase_LoginUser_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoginUser failed: %v", err)
 	}
-	claims, err := utils.ParseLoginToken(token)
+	claims, err := jwt.ParseLoginToken(token)
 	if err != nil {
 		t.Fatalf("ParseLoginToken failed: %v", err)
 	}
@@ -330,7 +330,7 @@ func TestAuthUseCase_VerifyEmail_EmailMismatchValidation(t *testing.T) {
 		t.Fatalf("create user failed: %v", err)
 	}
 
-	token, err := utils.GenerateEmailToken(u.ID, "other@example.com", time.Hour)
+	token, err := jwt.GenerateEmailToken(u.ID, "other@example.com", time.Hour)
 	if err != nil {
 		t.Fatalf("GenerateEmailToken failed: %v", err)
 	}

@@ -42,12 +42,12 @@ func setupTestDB(t *testing.T) {
 
 	dbConfig := config.NewDBConfig(settingStore)
 	authService := service.NewAuthService(dbConfig)
-	userService := service.NewUserService(userStore, dbConfig)
+	userService := service.NewUserService(userStore, dbConfig, nil)
 	imageService := service.NewImageService(imageStore, dbConfig)
 	emailService := service.NewEmailService(dbConfig)
 	captchaService := service.NewCaptchaService(dbConfig)
 	initService := service.NewInitService(systemStore, dbConfig)
-	passkeyService := service.NewPasskeyService(passkeyStore, dbConfig)
+	passkeyService := service.NewPasskeyService(passkeyStore, dbConfig, nil)
 	settingsService := service.NewSettingsService(settingStore, dbConfig)
 
 	authUseCase := appuc.NewAuthUseCase(authService, userStore, userService, emailService, initService, dbConfig)
@@ -67,7 +67,7 @@ func setupTestDB(t *testing.T) {
 
 	testHandler = &compositeHandler{
 		AuthHandler:     NewAuthHandler(authService, captchaService, authUseCase, initService, dbConfig, passkeyUseCase),
-		UserHandler:     NewUserHandler(userService, userUseCase, userManageUseCase, imageService, imageUseCase, authService, passkeyService, passkeyUseCase),
+		UserHandler:     NewUserHandler(userService, userUseCase, userManageUseCase, imageService, imageUseCase, authService, passkeyService, passkeyUseCase, nil),
 		ImageHandler:    NewImageHandler(imageService, imageUseCase),
 		SystemHandler:   NewSystemHandler(initService, statUseCase, dbConfig, userService),
 		SettingsHandler: NewSettingsHandler(settingsService, settingsUseCase),

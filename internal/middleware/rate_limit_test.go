@@ -25,7 +25,7 @@ func TestRateLimitMiddleware_DisabledAllowsRequests(t *testing.T) {
 	testService.ClearCache()
 
 	r := gin.New()
-	r.Use(RateLimitMiddleware(testService, consts.ConfigRateLimitAuthRPS, consts.ConfigRateLimitAuthBurst))
+	r.Use(RateLimitMiddleware(testService, consts.ConfigRateLimitAuthRPS, consts.ConfigRateLimitAuthBurst, nil))
 	r.GET("/x", func(c *gin.Context) { c.Status(http.StatusOK) })
 
 	req1 := httptest.NewRequest(http.MethodGet, "/x", nil)
@@ -57,7 +57,7 @@ func TestRateLimitMiddleware_EnabledBlocksBurst(t *testing.T) {
 	testService.ClearCache()
 
 	r := gin.New()
-	r.Use(RateLimitMiddleware(testService, consts.ConfigRateLimitAuthRPS, consts.ConfigRateLimitAuthBurst))
+	r.Use(RateLimitMiddleware(testService, consts.ConfigRateLimitAuthRPS, consts.ConfigRateLimitAuthBurst, nil))
 	r.GET("/x", func(c *gin.Context) { c.Status(http.StatusOK) })
 
 	req1 := httptest.NewRequest(http.MethodGet, "/x", nil)
@@ -90,7 +90,7 @@ func TestIntervalRateMiddleware_BlocksSecondRequest(t *testing.T) {
 	testService.ClearCache()
 
 	r := gin.New()
-	r.POST("/x", IntervalRateMiddleware(testService, consts.ConfigRateLimitPasswordResetIntervalSeconds), func(c *gin.Context) {
+	r.POST("/x", IntervalRateMiddleware(testService, consts.ConfigRateLimitPasswordResetIntervalSeconds, nil), func(c *gin.Context) {
 		c.Status(http.StatusOK)
 	})
 
@@ -124,7 +124,7 @@ func TestIntervalRateMiddleware_WithAnotherConfigKey_BlocksSecondRequest(t *test
 	testService.ClearCache()
 
 	r := gin.New()
-	r.POST("/x", IntervalRateMiddleware(testService, consts.ConfigRateLimitUsernameUpdateIntervalSeconds), func(c *gin.Context) {
+	r.POST("/x", IntervalRateMiddleware(testService, consts.ConfigRateLimitUsernameUpdateIntervalSeconds, nil), func(c *gin.Context) {
 		c.Status(http.StatusOK)
 	})
 

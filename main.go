@@ -15,7 +15,6 @@ import (
 	"perfect-pic-server/internal/config"
 	"perfect-pic-server/internal/di"
 	"perfect-pic-server/internal/middleware"
-	"perfect-pic-server/internal/service"
 	"perfect-pic-server/internal/utils"
 	"strings"
 	"syscall"
@@ -39,11 +38,16 @@ func main() {
 	flag.Parse()
 
 	config.InitConfig(*configDir)
-	_ = service.GetRedisClient()
-	defer func() { _ = service.CloseRedisClient() }()
 	app, err := di.InitializeApplication()
 	if err != nil {
 		log.Fatal("❌ 依赖注入初始化失败: ", err)
+	}
+	if app.RedisDB != nil {
+		defer func() {
+			if closeErr := app.RedisDB.Close(); closeErr != nil {
+				log.Printf("⚠️ 关闭 Redis 连接失败: %v", closeErr)
+			}
+		}()
 	}
 	sqlDB, err := app.GormDB.DB()
 	if err != nil {

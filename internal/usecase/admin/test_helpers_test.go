@@ -42,9 +42,9 @@ func setupAdminFixture(t *testing.T) *adminFixture {
 	}
 	dbConfig.ClearCache()
 
-	userService := service.NewUserService(userStore, dbConfig)
+	userService := service.NewUserService(userStore, dbConfig, nil)
 	imageService := service.NewImageService(imageStore, dbConfig)
-	passkeyService := service.NewPasskeyService(passkeyStore, dbConfig)
+	passkeyService := service.NewPasskeyService(passkeyStore, dbConfig, nil)
 	emailService := service.NewEmailService(dbConfig)
 	_ = service.NewInitService(systemStore, dbConfig)
 

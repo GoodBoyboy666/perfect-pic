@@ -10,6 +10,7 @@ import (
 	"perfect-pic-server/internal/config"
 	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/handler"
+	"perfect-pic-server/internal/pkg/redis"
 	"perfect-pic-server/internal/repository"
 	"perfect-pic-server/internal/router"
 	"perfect-pic-server/internal/service"
@@ -29,13 +30,14 @@ func InitializeApplication() (*Application, error) {
 	authService := service.NewAuthService(dbConfig)
 	captchaService := service.NewCaptchaService(dbConfig)
 	userStore := repository.NewUserRepository(gormDB)
-	userService := service.NewUserService(userStore, dbConfig)
+	client := redis.NewRedisClient()
+	userService := service.NewUserService(userStore, dbConfig, client)
 	emailService := service.NewEmailService(dbConfig)
 	systemStore := repository.NewSystemRepository(gormDB)
 	initService := service.NewInitService(systemStore, dbConfig)
 	authUseCase := app.NewAuthUseCase(authService, userStore, userService, emailService, initService, dbConfig)
 	passkeyStore := repository.NewPasskeyRepository(gormDB)
-	passkeyService := service.NewPasskeyService(passkeyStore, dbConfig)
+	passkeyService := service.NewPasskeyService(passkeyStore, dbConfig, client)
 	passkeyUseCase := app.NewPasskeyUseCase(passkeyService, passkeyStore, authService, userStore)
 	authHandler := handler.NewAuthHandler(authService, captchaService, authUseCase, initService, dbConfig, passkeyUseCase)
 	imageStore := repository.NewImageRepository(gormDB)
@@ -48,9 +50,9 @@ func InitializeApplication() (*Application, error) {
 	imageService := service.NewImageService(imageStore, dbConfig)
 	userManageUseCase := admin.NewUserManageUseCase(userService, imageService, passkeyService)
 	imageUseCase := app.NewImageUseCase(imageService, userService, userStore, dbConfig)
-	userHandler := handler.NewUserHandler(userService, userUseCase, userManageUseCase, imageService, imageUseCase, authService, passkeyService, passkeyUseCase)
+	userHandler := handler.NewUserHandler(userService, userUseCase, userManageUseCase, imageService, imageUseCase, authService, passkeyService, passkeyUseCase, client)
 	imageHandler := handler.NewImageHandler(imageService, imageUseCase)
-	routerRouter := router.NewRouter(authHandler, systemHandler, settingsHandler, userHandler, imageHandler, dbConfig, gormDB)
-	application := NewApplication(routerRouter, dbConfig, gormDB)
+	routerRouter := router.NewRouter(authHandler, systemHandler, settingsHandler, userHandler, imageHandler, dbConfig, gormDB, client)
+	application := NewApplication(routerRouter, dbConfig, gormDB, client)
 	return application, nil
 }

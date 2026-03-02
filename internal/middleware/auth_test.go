@@ -3,11 +3,11 @@ package middleware
 import (
 	"net/http"
 	"net/http/httptest"
+	"perfect-pic-server/internal/pkg/jwt"
 	"testing"
 	"time"
 
 	"perfect-pic-server/internal/model"
-	"perfect-pic-server/internal/utils"
 
 	"github.com/gin-gonic/gin"
 )
@@ -44,7 +44,7 @@ func TestJWTAuth_ValidTokenSetsContext(t *testing.T) {
 		c.Status(http.StatusOK)
 	})
 
-	token, err := utils.GenerateLoginToken(1, "alice", true, time.Hour)
+	token, err := jwt.GenerateLoginToken(1, "alice", true, time.Hour)
 	if err != nil {
 		t.Fatalf("GenerateLoginToken: %v", err)
 	}
@@ -73,7 +73,7 @@ func TestUserStatusCheck_BannedForbidden(t *testing.T) {
 	r := gin.New()
 	r.GET("/x",
 		func(c *gin.Context) { c.Set("id", u.ID); c.Next() },
-		UserStatusCheck(gdb),
+		UserStatusCheck(gdb, nil),
 		func(c *gin.Context) { c.Status(http.StatusOK) },
 	)
 
@@ -98,7 +98,7 @@ func TestUserStatusCheck_NormalOK(t *testing.T) {
 	r := gin.New()
 	r.GET("/x",
 		func(c *gin.Context) { c.Set("id", u.ID); c.Next() },
-		UserStatusCheck(gdb),
+		UserStatusCheck(gdb, nil),
 		func(c *gin.Context) { c.Status(http.StatusOK) },
 	)
 
@@ -119,7 +119,7 @@ func TestUserStatusCheck_ErrorBranches(t *testing.T) {
 
 	// 缺少 id
 	r1 := gin.New()
-	r1.GET("/x", UserStatusCheck(gdb), func(c *gin.Context) { c.Status(http.StatusOK) })
+	r1.GET("/x", UserStatusCheck(gdb, nil), func(c *gin.Context) { c.Status(http.StatusOK) })
 	w1 := httptest.NewRecorder()
 	r1.ServeHTTP(w1, httptest.NewRequest(http.MethodGet, "/x", nil))
 	if w1.Code != http.StatusUnauthorized {
@@ -130,7 +130,7 @@ func TestUserStatusCheck_ErrorBranches(t *testing.T) {
 	r2 := gin.New()
 	r2.GET("/x",
 		func(c *gin.Context) { c.Set("id", "bad"); c.Next() },
-		UserStatusCheck(gdb),
+		UserStatusCheck(gdb, nil),
 		func(c *gin.Context) { c.Status(http.StatusOK) },
 	)
 	w2 := httptest.NewRecorder()
@@ -143,7 +143,7 @@ func TestUserStatusCheck_ErrorBranches(t *testing.T) {
 	r3 := gin.New()
 	r3.GET("/x",
 		func(c *gin.Context) { c.Set("id", uint(999)); c.Next() },
-		UserStatusCheck(gdb),
+		UserStatusCheck(gdb, nil),
 		func(c *gin.Context) { c.Status(http.StatusOK) },
 	)
 	w3 := httptest.NewRecorder()
@@ -158,7 +158,7 @@ func TestUserStatusCheck_ErrorBranches(t *testing.T) {
 	r4 := gin.New()
 	r4.GET("/x",
 		func(c *gin.Context) { c.Set("id", u.ID); c.Next() },
-		UserStatusCheck(gdb),
+		UserStatusCheck(gdb, nil),
 		func(c *gin.Context) { c.Status(http.StatusOK) },
 	)
 	w4 := httptest.NewRecorder()
@@ -203,7 +203,7 @@ func TestClearUserStatusCache_RemovesLocalCache(t *testing.T) {
 	resetStatusCache()
 
 	statusCache.Store(uint(1), cachedStatus{Status: 2})
-	ClearUserStatusCache(uint(1))
+	ClearUserStatusCache(nil, uint(1))
 	if _, ok := statusCache.Load(uint(1)); ok {
 		t.Fatalf("期望缓存条目被移除")
 	}
