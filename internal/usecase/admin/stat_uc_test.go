@@ -1,7 +1,6 @@
 package admin
 
 import (
-	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/model"
 	"runtime"
 	"testing"
@@ -12,10 +11,10 @@ func TestStatUseCase_AdminGetServerStats(t *testing.T) {
 
 	u1 := model.User{Username: "u1", Password: "x", Status: 1, Email: "u1@example.com"}
 	u2 := model.User{Username: "u2", Password: "x", Status: 1, Email: "u2@example.com"}
-	if err := db.DB.Create(&u1).Error; err != nil {
+	if err := testGormDB.Create(&u1).Error; err != nil {
 		t.Fatalf("create user1 failed: %v", err)
 	}
-	if err := db.DB.Create(&u2).Error; err != nil {
+	if err := testGormDB.Create(&u2).Error; err != nil {
 		t.Fatalf("create user2 failed: %v", err)
 	}
 
@@ -29,7 +28,7 @@ func TestStatUseCase_AdminGetServerStats(t *testing.T) {
 		Width:      1,
 		Height:     1,
 	}
-	if err := db.DB.Create(&img).Error; err != nil {
+	if err := testGormDB.Create(&img).Error; err != nil {
 		t.Fatalf("create image failed: %v", err)
 	}
 

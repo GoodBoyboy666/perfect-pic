@@ -10,7 +10,7 @@ import (
 )
 
 // 测试内容：验证使用 sqlite 临时文件初始化数据库并创建核心表。
-func TestInitDB_SQLiteTempFile(t *testing.T) {
+func TestNewGormDB_SQLiteTempFile(t *testing.T) {
 	tmp := t.TempDir()
 	cfgDir := filepath.Join(tmp, "cfg")
 	if err := os.MkdirAll(cfgDir, 0755); err != nil {
@@ -23,22 +23,25 @@ func TestInitDB_SQLiteTempFile(t *testing.T) {
 	t.Setenv("PERFECT_PIC_DATABASE_FILENAME", dbFile)
 
 	config.InitConfig(cfgDir)
-	InitDB()
+	gdb, err := NewGormDB()
+	if err != nil {
+		t.Fatalf("NewGormDB failed: %v", err)
+	}
 
-	if DB == nil {
+	if gdb == nil {
 		t.Fatalf("期望 DB to be initialized")
 	}
-	if !DB.Migrator().HasTable(&model.User{}) {
+	if !gdb.Migrator().HasTable(&model.User{}) {
 		t.Fatalf("期望 users table to exist")
 	}
-	if !DB.Migrator().HasTable(&model.Setting{}) {
+	if !gdb.Migrator().HasTable(&model.Setting{}) {
 		t.Fatalf("期望 settings table to exist")
 	}
-	if !DB.Migrator().HasTable(&model.Image{}) {
+	if !gdb.Migrator().HasTable(&model.Image{}) {
 		t.Fatalf("期望 images table to exist")
 	}
 
-	sqlDB, err := DB.DB()
+	sqlDB, err := gdb.DB()
 	if err == nil {
 		_ = sqlDB.Close()
 	}

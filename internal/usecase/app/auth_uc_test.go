@@ -3,7 +3,6 @@ package app
 import (
 	"perfect-pic-server/internal/common/httpx"
 	"perfect-pic-server/internal/consts"
-	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/model"
 	"perfect-pic-server/internal/utils"
 	"testing"
@@ -23,7 +22,7 @@ func TestAuthUseCase_LoginUser_WrongPasswordUnauthorized(t *testing.T) {
 		Email:         "alice@example.com",
 		EmailVerified: true,
 	}
-	if err := db.DB.Create(&u).Error; err != nil {
+	if err := testGormDB.Create(&u).Error; err != nil {
 		t.Fatalf("create user failed: %v", err)
 	}
 
@@ -47,7 +46,7 @@ func TestAuthUseCase_RegisterUser_SuccessCreatesUser(t *testing.T) {
 	}
 
 	var got model.User
-	if err := db.DB.Where("username = ?", "alice_1").First(&got).Error; err != nil {
+	if err := testGormDB.Where("username = ?", "alice_1").First(&got).Error; err != nil {
 		t.Fatalf("load created user failed: %v", err)
 	}
 	if got.EmailVerified {
@@ -69,7 +68,7 @@ func TestAuthUseCase_VerifyEmail_SetsVerifiedAndAlreadyVerified(t *testing.T) {
 		Email:         "alice@example.com",
 		EmailVerified: false,
 	}
-	if err := db.DB.Create(&u).Error; err != nil {
+	if err := testGormDB.Create(&u).Error; err != nil {
 		t.Fatalf("create user failed: %v", err)
 	}
 
@@ -87,7 +86,7 @@ func TestAuthUseCase_VerifyEmail_SetsVerifiedAndAlreadyVerified(t *testing.T) {
 	}
 
 	var got model.User
-	if err := db.DB.First(&got, u.ID).Error; err != nil {
+	if err := testGormDB.First(&got, u.ID).Error; err != nil {
 		t.Fatalf("reload user failed: %v", err)
 	}
 	if !got.EmailVerified {
@@ -114,7 +113,7 @@ func TestAuthUseCase_LoginUser_Success(t *testing.T) {
 		Email:         "alice@example.com",
 		EmailVerified: true,
 	}
-	if err := db.DB.Create(&u).Error; err != nil {
+	if err := testGormDB.Create(&u).Error; err != nil {
 		t.Fatalf("create user failed: %v", err)
 	}
 
@@ -135,14 +134,14 @@ func TestAuthUseCase_RegisterUser_DisabledAndConflicts(t *testing.T) {
 	f := setupAppFixture(t)
 	f.initializeSystem(t)
 
-	if err := db.DB.Save(&model.Setting{Key: consts.ConfigAllowRegister, Value: "false"}).Error; err != nil {
+	if err := testGormDB.Save(&model.Setting{Key: consts.ConfigAllowRegister, Value: "false"}).Error; err != nil {
 		t.Fatalf("set allow_register=false failed: %v", err)
 	}
 	f.dbConfig.ClearCache()
 	err := f.authUC.RegisterUser("alice_1", "abc12345", "alice@example.com")
 	assertAuthErrorCode(t, err, httpx.AuthErrorForbidden)
 
-	if err := db.DB.Save(&model.Setting{Key: consts.ConfigAllowRegister, Value: "true"}).Error; err != nil {
+	if err := testGormDB.Save(&model.Setting{Key: consts.ConfigAllowRegister, Value: "true"}).Error; err != nil {
 		t.Fatalf("set allow_register=true failed: %v", err)
 	}
 	f.dbConfig.ClearCache()
@@ -154,7 +153,7 @@ func TestAuthUseCase_RegisterUser_DisabledAndConflicts(t *testing.T) {
 		Status:   1,
 		Email:    "taken@example.com",
 	}
-	if err := db.DB.Create(&exist).Error; err != nil {
+	if err := testGormDB.Create(&exist).Error; err != nil {
 		t.Fatalf("create existing user failed: %v", err)
 	}
 
@@ -183,7 +182,7 @@ func TestAuthUseCase_VerifyEmailChange_Success(t *testing.T) {
 		Email:         "old@example.com",
 		EmailVerified: true,
 	}
-	if err := db.DB.Create(&u).Error; err != nil {
+	if err := testGormDB.Create(&u).Error; err != nil {
 		t.Fatalf("create user failed: %v", err)
 	}
 
@@ -197,7 +196,7 @@ func TestAuthUseCase_VerifyEmailChange_Success(t *testing.T) {
 	}
 
 	var got model.User
-	if err := db.DB.First(&got, u.ID).Error; err != nil {
+	if err := testGormDB.First(&got, u.ID).Error; err != nil {
 		t.Fatalf("reload user failed: %v", err)
 	}
 	if got.Email != "new@example.com" || !got.EmailVerified {
@@ -223,10 +222,10 @@ func TestAuthUseCase_VerifyEmailChange_Conflict(t *testing.T) {
 		Email:         "taken@example.com",
 		EmailVerified: true,
 	}
-	if err := db.DB.Create(&u1).Error; err != nil {
+	if err := testGormDB.Create(&u1).Error; err != nil {
 		t.Fatalf("create user1 failed: %v", err)
 	}
-	if err := db.DB.Create(&u2).Error; err != nil {
+	if err := testGormDB.Create(&u2).Error; err != nil {
 		t.Fatalf("create user2 failed: %v", err)
 	}
 
@@ -259,10 +258,10 @@ func TestAuthUseCase_RequestPasswordReset_Branches(t *testing.T) {
 		Status:   1,
 		Email:    "alice@example.com",
 	}
-	if err := db.DB.Create(&banned).Error; err != nil {
+	if err := testGormDB.Create(&banned).Error; err != nil {
 		t.Fatalf("create banned user failed: %v", err)
 	}
-	if err := db.DB.Create(&active).Error; err != nil {
+	if err := testGormDB.Create(&active).Error; err != nil {
 		t.Fatalf("create active user failed: %v", err)
 	}
 
@@ -285,7 +284,7 @@ func TestAuthUseCase_ResetPassword_SuccessAndValidation(t *testing.T) {
 		Email:         "alice@example.com",
 		EmailVerified: false,
 	}
-	if err := db.DB.Create(&u).Error; err != nil {
+	if err := testGormDB.Create(&u).Error; err != nil {
 		t.Fatalf("create user failed: %v", err)
 	}
 
@@ -305,7 +304,7 @@ func TestAuthUseCase_ResetPassword_SuccessAndValidation(t *testing.T) {
 	}
 
 	var got model.User
-	if err := db.DB.First(&got, u.ID).Error; err != nil {
+	if err := testGormDB.First(&got, u.ID).Error; err != nil {
 		t.Fatalf("reload user failed: %v", err)
 	}
 	if !got.EmailVerified {
@@ -327,7 +326,7 @@ func TestAuthUseCase_VerifyEmail_EmailMismatchValidation(t *testing.T) {
 		Email:         "alice@example.com",
 		EmailVerified: false,
 	}
-	if err := db.DB.Create(&u).Error; err != nil {
+	if err := testGormDB.Create(&u).Error; err != nil {
 		t.Fatalf("create user failed: %v", err)
 	}
 

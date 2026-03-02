@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"perfect-pic-server/internal/consts"
-	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/model"
 	"perfect-pic-server/internal/utils"
 
@@ -23,12 +22,12 @@ func TestLoginHandler_SuccessAndUnauthorized(t *testing.T) {
 	setupTestDB(t)
 
 	// 测试中禁用验证码。
-	_ = db.DB.Save(&model.Setting{Key: consts.ConfigCaptchaProvider, Value: ""}).Error
+	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigCaptchaProvider, Value: ""}).Error
 	testService.ClearCache()
 
 	hashed, _ := bcrypt.GenerateFromPassword([]byte("abc12345"), bcrypt.DefaultCost)
 	u := model.User{Username: "alice", Password: string(hashed), Status: 1, Email: "a@example.com", EmailVerified: true}
-	_ = db.DB.Create(&u).Error
+	_ = testGormDB.Create(&u).Error
 
 	r := gin.New()
 	r.POST("/login", testHandler.Login)
@@ -79,9 +78,9 @@ func TestRegisterHandler_ForbiddenWhenDisabled(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	setupTestDB(t)
 
-	_ = db.DB.Save(&model.Setting{Key: consts.ConfigCaptchaProvider, Value: ""}).Error
-	_ = db.DB.Save(&model.Setting{Key: consts.ConfigAllowInit, Value: "false"}).Error
-	_ = db.DB.Save(&model.Setting{Key: consts.ConfigAllowRegister, Value: "false"}).Error
+	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigCaptchaProvider, Value: ""}).Error
+	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigAllowInit, Value: "false"}).Error
+	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigAllowRegister, Value: "false"}).Error
 	testService.ClearCache()
 
 	r := gin.New()
@@ -102,7 +101,7 @@ func TestEmailVerifyHandler_OK(t *testing.T) {
 
 	hashed, _ := bcrypt.GenerateFromPassword([]byte("abc12345"), bcrypt.DefaultCost)
 	u := model.User{Username: "alice", Password: string(hashed), Status: 1, Email: "a@example.com", EmailVerified: false}
-	_ = db.DB.Create(&u).Error
+	_ = testGormDB.Create(&u).Error
 
 	token, err := utils.GenerateEmailToken(u.ID, u.Email, time.Hour)
 	if err != nil {
@@ -125,9 +124,9 @@ func TestRegisterHandler_Success(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	setupTestDB(t)
 
-	_ = db.DB.Save(&model.Setting{Key: consts.ConfigCaptchaProvider, Value: ""}).Error
-	_ = db.DB.Save(&model.Setting{Key: consts.ConfigAllowInit, Value: "false"}).Error
-	_ = db.DB.Save(&model.Setting{Key: consts.ConfigAllowRegister, Value: "true"}).Error
+	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigCaptchaProvider, Value: ""}).Error
+	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigAllowInit, Value: "false"}).Error
+	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigAllowRegister, Value: "true"}).Error
 	testService.ClearCache()
 
 	r := gin.New()
@@ -146,7 +145,7 @@ func TestRequestPasswordResetHandler_Always200ForUnknownEmail(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	setupTestDB(t)
 
-	_ = db.DB.Save(&model.Setting{Key: consts.ConfigCaptchaProvider, Value: ""}).Error
+	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigCaptchaProvider, Value: ""}).Error
 	testService.ClearCache()
 
 	r := gin.New()
@@ -182,7 +181,7 @@ func TestResetPasswordHandler_OK(t *testing.T) {
 
 	hashed, _ := bcrypt.GenerateFromPassword([]byte("abc12345"), bcrypt.DefaultCost)
 	u := model.User{Username: "alice", Password: string(hashed), Status: 1, Email: "a@example.com"}
-	_ = db.DB.Create(&u).Error
+	_ = testGormDB.Create(&u).Error
 
 	token, err := testUserSvc.GenerateForgetPasswordToken(u.ID)
 	if err != nil {
@@ -223,7 +222,7 @@ func TestEmailChangeVerifyHandler_OK(t *testing.T) {
 
 	hashed, _ := bcrypt.GenerateFromPassword([]byte("abc12345"), bcrypt.DefaultCost)
 	u := model.User{Username: "alice", Password: string(hashed), Status: 1, Email: "old@example.com", EmailVerified: true}
-	_ = db.DB.Create(&u).Error
+	_ = testGormDB.Create(&u).Error
 
 	token, err := testUserSvc.GenerateEmailChangeToken(u.ID, "old@example.com", "new@example.com")
 	if err != nil {
@@ -261,7 +260,7 @@ func TestGetRegisterStateHandler(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	setupTestDB(t)
 
-	_ = db.DB.Save(&model.Setting{Key: consts.ConfigAllowRegister, Value: "false"}).Error
+	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigAllowRegister, Value: "false"}).Error
 	testService.ClearCache()
 
 	r := gin.New()
@@ -279,7 +278,7 @@ func TestBeginPasskeyLoginHandler_OK(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	setupTestDB(t)
 
-	_ = db.DB.Save(&model.Setting{Key: consts.ConfigCaptchaProvider, Value: ""}).Error
+	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigCaptchaProvider, Value: ""}).Error
 	testService.ClearCache()
 
 	r := gin.New()

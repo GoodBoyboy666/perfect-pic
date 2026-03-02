@@ -6,7 +6,6 @@ import (
 
 	"perfect-pic-server/internal/config"
 	"perfect-pic-server/internal/consts"
-	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/model"
 )
 
@@ -119,7 +118,7 @@ func TestEmailSendFunctions_AttemptSendAndFailFast(t *testing.T) {
 	setupTestDB(t)
 
 	// 在设置中启用 SMTP。
-	_ = db.DB.Save(&model.Setting{Key: consts.ConfigEnableSMTP, Value: "true"}).Error
+	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigEnableSMTP, Value: "true"}).Error
 	testService.ClearCache()
 
 	// 重新初始化配置，使用不可达的 SMTP host/port 以便 SendMail 快速失败。

@@ -3,7 +3,6 @@ package app
 import (
 	"encoding/json"
 	"perfect-pic-server/internal/common"
-	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/model"
 	"testing"
 
@@ -20,7 +19,7 @@ func TestPasskeyUseCase_EnsureUserPasskeyCapacity_Conflict(t *testing.T) {
 		Email:         "alice@example.com",
 		EmailVerified: true,
 	}
-	if err := db.DB.Create(&u).Error; err != nil {
+	if err := testGormDB.Create(&u).Error; err != nil {
 		t.Fatalf("create user failed: %v", err)
 	}
 
@@ -30,7 +29,7 @@ func TestPasskeyUseCase_EnsureUserPasskeyCapacity_Conflict(t *testing.T) {
 			CredentialID: "cred_cap_" + string(rune('a'+i)),
 			Credential:   `{"id":"x"}`,
 		}
-		if err := db.DB.Create(&record).Error; err != nil {
+		if err := testGormDB.Create(&record).Error; err != nil {
 			t.Fatalf("create passkey failed: %v", err)
 		}
 	}
@@ -90,7 +89,7 @@ func TestPasskeyUseCase_BeginPasskeyRegistration_Success(t *testing.T) {
 		Email:         "alice@example.com",
 		EmailVerified: true,
 	}
-	if err := db.DB.Create(&u).Error; err != nil {
+	if err := testGormDB.Create(&u).Error; err != nil {
 		t.Fatalf("create user failed: %v", err)
 	}
 
@@ -116,7 +115,7 @@ func TestPasskeyUseCase_FinishPasskeyRegistration_InvalidCredential(t *testing.T
 		Email:         "alice@example.com",
 		EmailVerified: true,
 	}
-	if err := db.DB.Create(&u).Error; err != nil {
+	if err := testGormDB.Create(&u).Error; err != nil {
 		t.Fatalf("create user failed: %v", err)
 	}
 
@@ -146,7 +145,7 @@ func TestPasskeyUseCase_LoadPasskeyWebAuthnUser_LoginMode(t *testing.T) {
 		Email:         "alice@example.com",
 		EmailVerified: true,
 	}
-	if err := db.DB.Create(&u).Error; err != nil {
+	if err := testGormDB.Create(&u).Error; err != nil {
 		t.Fatalf("create user failed: %v", err)
 	}
 
@@ -159,7 +158,7 @@ func TestPasskeyUseCase_LoadPasskeyWebAuthnUser_LoginMode(t *testing.T) {
 		CredentialID: "cred_login_mode",
 		Credential:   string(rawCred),
 	}
-	if err := db.DB.Create(&record).Error; err != nil {
+	if err := testGormDB.Create(&record).Error; err != nil {
 		t.Fatalf("create passkey record failed: %v", err)
 	}
 

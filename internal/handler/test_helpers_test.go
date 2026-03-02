@@ -9,6 +9,8 @@ import (
 	"perfect-pic-server/internal/testutils"
 	adminuc "perfect-pic-server/internal/usecase/admin"
 	appuc "perfect-pic-server/internal/usecase/app"
+
+	"gorm.io/gorm"
 )
 
 type compositeHandler struct {
@@ -23,6 +25,7 @@ var (
 	testService *config.DBConfig
 	testUserSvc *service.UserService
 	testHandler *compositeHandler
+	testGormDB  *gorm.DB
 )
 
 func setupTestDB(t *testing.T) {
@@ -30,6 +33,7 @@ func setupTestDB(t *testing.T) {
 	config.InitConfig("")
 
 	gdb := testutils.SetupDB(t)
+	testGormDB = gdb
 	userStore := repository.NewUserRepository(gdb)
 	imageStore := repository.NewImageRepository(gdb)
 	settingStore := repository.NewSettingRepository(gdb)

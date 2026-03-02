@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/model"
 	"perfect-pic-server/internal/service"
 	"perfect-pic-server/internal/utils"
@@ -15,6 +14,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
+	"gorm.io/gorm"
 )
 
 var (
@@ -78,8 +78,14 @@ func JWTAuth() gin.HandlerFunc {
 // UserStatusCheck 检查用户状态是否被封禁
 //
 //nolint:gocyclo
-func UserStatusCheck() gin.HandlerFunc {
+func UserStatusCheck(gormDB *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if gormDB == nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库未初始化"})
+			c.Abort()
+			return
+		}
+
 		userID, exists := c.Get("id")
 		if !exists {
 			// 如果没有上下文中的 id，说明 JWT 中间件可能未执行或失败但未 Abort（理论上不可能），或者顺序不对
@@ -144,7 +150,7 @@ func UserStatusCheck() gin.HandlerFunc {
 		// 如果缓存未命中或过期，查询数据库
 		if !statusFound {
 			var user model.User
-			if err := db.DB.Select("status").First(&user, uid).Error; err != nil {
+			if err := gormDB.Select("status").First(&user, uid).Error; err != nil {
 				c.JSON(http.StatusUnauthorized, gin.H{"error": "用户不存在"})
 				c.Abort()
 				return

@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/model"
 	"perfect-pic-server/internal/utils"
 
@@ -63,18 +62,18 @@ func TestJWTAuth_ValidTokenSetsContext(t *testing.T) {
 // 测试内容：验证被禁用用户状态会被拦截并返回 403。
 func TestUserStatusCheck_BannedForbidden(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	setupTestDB(t)
+	gdb := setupTestDB(t)
 	resetStatusCache()
 
 	u := model.User{Username: "alice", Password: "x", Status: 2, Email: "a@example.com"}
-	if err := db.DB.Create(&u).Error; err != nil {
+	if err := testGormDB.Create(&u).Error; err != nil {
 		t.Fatalf("创建用户失败: %v", err)
 	}
 
 	r := gin.New()
 	r.GET("/x",
 		func(c *gin.Context) { c.Set("id", u.ID); c.Next() },
-		UserStatusCheck(),
+		UserStatusCheck(gdb),
 		func(c *gin.Context) { c.Status(http.StatusOK) },
 	)
 
@@ -90,16 +89,16 @@ func TestUserStatusCheck_BannedForbidden(t *testing.T) {
 // 测试内容：验证正常用户状态通过检查并返回 200。
 func TestUserStatusCheck_NormalOK(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	setupTestDB(t)
+	gdb := setupTestDB(t)
 	resetStatusCache()
 
 	u := model.User{Username: "alice", Password: "x", Status: 1, Email: "a@example.com"}
-	_ = db.DB.Create(&u).Error
+	_ = testGormDB.Create(&u).Error
 
 	r := gin.New()
 	r.GET("/x",
 		func(c *gin.Context) { c.Set("id", u.ID); c.Next() },
-		UserStatusCheck(),
+		UserStatusCheck(gdb),
 		func(c *gin.Context) { c.Status(http.StatusOK) },
 	)
 
@@ -115,12 +114,12 @@ func TestUserStatusCheck_NormalOK(t *testing.T) {
 // 测试内容：验证缺失 id、类型错误、未找到用户与禁用状态的错误分支处理。
 func TestUserStatusCheck_ErrorBranches(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	setupTestDB(t)
+	gdb := setupTestDB(t)
 	resetStatusCache()
 
 	// 缺少 id
 	r1 := gin.New()
-	r1.GET("/x", UserStatusCheck(), func(c *gin.Context) { c.Status(http.StatusOK) })
+	r1.GET("/x", UserStatusCheck(gdb), func(c *gin.Context) { c.Status(http.StatusOK) })
 	w1 := httptest.NewRecorder()
 	r1.ServeHTTP(w1, httptest.NewRequest(http.MethodGet, "/x", nil))
 	if w1.Code != http.StatusUnauthorized {
@@ -131,7 +130,7 @@ func TestUserStatusCheck_ErrorBranches(t *testing.T) {
 	r2 := gin.New()
 	r2.GET("/x",
 		func(c *gin.Context) { c.Set("id", "bad"); c.Next() },
-		UserStatusCheck(),
+		UserStatusCheck(gdb),
 		func(c *gin.Context) { c.Status(http.StatusOK) },
 	)
 	w2 := httptest.NewRecorder()
@@ -144,7 +143,7 @@ func TestUserStatusCheck_ErrorBranches(t *testing.T) {
 	r3 := gin.New()
 	r3.GET("/x",
 		func(c *gin.Context) { c.Set("id", uint(999)); c.Next() },
-		UserStatusCheck(),
+		UserStatusCheck(gdb),
 		func(c *gin.Context) { c.Status(http.StatusOK) },
 	)
 	w3 := httptest.NewRecorder()
@@ -155,11 +154,11 @@ func TestUserStatusCheck_ErrorBranches(t *testing.T) {
 
 	// 状态 3 已禁用
 	u := model.User{Username: "d", Password: "x", Status: 3, Email: "d@example.com"}
-	_ = db.DB.Create(&u).Error
+	_ = testGormDB.Create(&u).Error
 	r4 := gin.New()
 	r4.GET("/x",
 		func(c *gin.Context) { c.Set("id", u.ID); c.Next() },
-		UserStatusCheck(),
+		UserStatusCheck(gdb),
 		func(c *gin.Context) { c.Status(http.StatusOK) },
 	)
 	w4 := httptest.NewRecorder()

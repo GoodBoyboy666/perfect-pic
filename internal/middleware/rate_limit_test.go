@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"perfect-pic-server/internal/consts"
-	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/model"
 
 	"github.com/gin-gonic/gin"
@@ -20,7 +19,7 @@ func TestRateLimitMiddleware_DisabledAllowsRequests(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	setupTestDB(t)
 
-	if err := db.DB.Save(&model.Setting{Key: consts.ConfigRateLimitEnabled, Value: "false"}).Error; err != nil {
+	if err := testGormDB.Save(&model.Setting{Key: consts.ConfigRateLimitEnabled, Value: "false"}).Error; err != nil {
 		t.Fatalf("设置配置项失败: %v", err)
 	}
 	testService.ClearCache()
@@ -52,9 +51,9 @@ func TestRateLimitMiddleware_EnabledBlocksBurst(t *testing.T) {
 	setupTestDB(t)
 
 	// 启用限流器：突发 1 个令牌且不补充（rps=0）。
-	_ = db.DB.Save(&model.Setting{Key: consts.ConfigRateLimitEnabled, Value: "true"}).Error
-	_ = db.DB.Save(&model.Setting{Key: consts.ConfigRateLimitAuthRPS, Value: "0"}).Error
-	_ = db.DB.Save(&model.Setting{Key: consts.ConfigRateLimitAuthBurst, Value: "1"}).Error
+	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigRateLimitEnabled, Value: "true"}).Error
+	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigRateLimitAuthRPS, Value: "0"}).Error
+	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigRateLimitAuthBurst, Value: "1"}).Error
 	testService.ClearCache()
 
 	r := gin.New()
@@ -83,8 +82,8 @@ func TestIntervalRateMiddleware_BlocksSecondRequest(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	setupTestDB(t)
 
-	_ = db.DB.Save(&model.Setting{Key: consts.ConfigEnableSensitiveRateLimit, Value: "true"}).Error
-	_ = db.DB.Save(&model.Setting{
+	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigEnableSensitiveRateLimit, Value: "true"}).Error
+	_ = testGormDB.Save(&model.Setting{
 		Key:   consts.ConfigRateLimitPasswordResetIntervalSeconds,
 		Value: "10",
 	}).Error
@@ -117,8 +116,8 @@ func TestIntervalRateMiddleware_WithAnotherConfigKey_BlocksSecondRequest(t *test
 	gin.SetMode(gin.TestMode)
 	setupTestDB(t)
 
-	_ = db.DB.Save(&model.Setting{Key: consts.ConfigEnableSensitiveRateLimit, Value: "true"}).Error
-	_ = db.DB.Save(&model.Setting{
+	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigEnableSensitiveRateLimit, Value: "true"}).Error
+	_ = testGormDB.Save(&model.Setting{
 		Key:   consts.ConfigRateLimitUsernameUpdateIntervalSeconds,
 		Value: "10",
 	}).Error

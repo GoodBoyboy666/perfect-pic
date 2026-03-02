@@ -9,7 +9,6 @@ import (
 	moduledto "perfect-pic-server/internal/dto"
 	"testing"
 
-	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/model"
 	"perfect-pic-server/internal/testutils"
 )
@@ -52,7 +51,7 @@ func TestDeleteImage_RemovesFileAndUpdatesStorage(t *testing.T) {
 	defer func() { _ = os.Chdir(oldwd) }()
 
 	u := model.User{Username: "alice", Password: "x", Status: 1, Email: "a@example.com", StorageUsed: 4}
-	_ = db.DB.Create(&u).Error
+	_ = testGormDB.Create(&u).Error
 
 	imgRel := "2026/02/13/a.png"
 	full := filepath.Join("uploads", "imgs", filepath.FromSlash(imgRel))
@@ -60,7 +59,7 @@ func TestDeleteImage_RemovesFileAndUpdatesStorage(t *testing.T) {
 	_ = os.WriteFile(full, []byte{0x89, 0x50, 0x4E, 0x47}, 0644)
 
 	img := model.Image{Filename: "a.png", Path: imgRel, Size: 4, Width: 1, Height: 1, MimeType: ".png", UploadedAt: 1, UserID: u.ID}
-	_ = db.DB.Create(&img).Error
+	_ = testGormDB.Create(&img).Error
 
 	if err := testService.DeleteImage(&img); err != nil {
 		t.Fatalf("DeleteImage: %v", err)
@@ -70,13 +69,13 @@ func TestDeleteImage_RemovesFileAndUpdatesStorage(t *testing.T) {
 	}
 
 	var count int64
-	_ = db.DB.Model(&model.Image{}).Count(&count).Error
+	_ = testGormDB.Model(&model.Image{}).Count(&count).Error
 	if count != 0 {
 		t.Fatalf("期望 image record deleted")
 	}
 
 	var got model.User
-	_ = db.DB.First(&got, u.ID).Error
+	_ = testGormDB.First(&got, u.ID).Error
 	if got.StorageUsed != 0 {
 		t.Fatalf("期望 storage_used 0，实际为 %d", got.StorageUsed)
 	}
@@ -92,12 +91,12 @@ func TestBatchDeleteImages_RemovesFilesAndUpdatesStorage(t *testing.T) {
 	defer func() { _ = os.Chdir(oldwd) }()
 
 	u := model.User{Username: "alice", Password: "x", Status: 1, Email: "a@example.com", StorageUsed: 8}
-	_ = db.DB.Create(&u).Error
+	_ = testGormDB.Create(&u).Error
 
 	img1 := model.Image{Filename: "a.png", Path: "2026/02/13/a.png", Size: 4, Width: 1, Height: 1, MimeType: ".png", UploadedAt: 1, UserID: u.ID}
 	img2 := model.Image{Filename: "b.png", Path: "2026/02/13/b.png", Size: 4, Width: 1, Height: 1, MimeType: ".png", UploadedAt: 1, UserID: u.ID}
-	_ = db.DB.Create(&img1).Error
-	_ = db.DB.Create(&img2).Error
+	_ = testGormDB.Create(&img1).Error
+	_ = testGormDB.Create(&img2).Error
 
 	full1 := filepath.Join("uploads", "imgs", filepath.FromSlash(img1.Path))
 	full2 := filepath.Join("uploads", "imgs", filepath.FromSlash(img2.Path))
@@ -116,7 +115,7 @@ func TestBatchDeleteImages_RemovesFilesAndUpdatesStorage(t *testing.T) {
 	}
 
 	var got model.User
-	_ = db.DB.First(&got, u.ID).Error
+	_ = testGormDB.First(&got, u.ID).Error
 	if got.StorageUsed != 0 {
 		t.Fatalf("期望 storage_used 0，实际为 %d", got.StorageUsed)
 	}
@@ -139,14 +138,14 @@ func TestListUserImages_FiltersAndPaging(t *testing.T) {
 	setupTestDB(t)
 
 	u := model.User{Username: "u1", Password: "x", Status: 1, Email: "u1@example.com"}
-	if err := db.DB.Create(&u).Error; err != nil {
+	if err := testGormDB.Create(&u).Error; err != nil {
 		t.Fatalf("创建用户失败: %v", err)
 	}
 
 	img1 := model.Image{Filename: "cat.png", Path: "2026/02/13/cat.png", Size: 1, Width: 1, Height: 1, MimeType: ".png", UploadedAt: 1, UserID: u.ID}
 	img2 := model.Image{Filename: "dog.png", Path: "2026/02/13/dog.png", Size: 1, Width: 1, Height: 1, MimeType: ".png", UploadedAt: 2, UserID: u.ID}
-	_ = db.DB.Create(&img1).Error
-	_ = db.DB.Create(&img2).Error
+	_ = testGormDB.Create(&img1).Error
+	_ = testGormDB.Create(&img2).Error
 
 	list, total, page, pageSize, err := testService.ListUserImages(moduledto.UserImageListRequest{
 		PaginationRequest: moduledto.PaginationRequest{Page: 1, PageSize: 10},
@@ -169,9 +168,9 @@ func TestGetUserOwnedImage(t *testing.T) {
 	setupTestDB(t)
 
 	u := model.User{Username: "u1", Password: "x", Status: 1, Email: "u1@example.com"}
-	_ = db.DB.Create(&u).Error
+	_ = testGormDB.Create(&u).Error
 	img := model.Image{Filename: "a.png", Path: "2026/02/13/a.png", Size: 1, Width: 1, Height: 1, MimeType: ".png", UploadedAt: 1, UserID: u.ID}
-	_ = db.DB.Create(&img).Error
+	_ = testGormDB.Create(&img).Error
 
 	got, err := testService.GetUserOwnedImage(img.ID, u.ID)
 	if err != nil {
@@ -192,12 +191,12 @@ func TestGetUserImageCountAndBatchGetters(t *testing.T) {
 	setupTestDB(t)
 
 	u := model.User{Username: "u1", Password: "x", Status: 1, Email: "u1@example.com"}
-	_ = db.DB.Create(&u).Error
+	_ = testGormDB.Create(&u).Error
 
 	img1 := model.Image{Filename: "a.png", Path: "2026/02/13/a.png", Size: 1, Width: 1, Height: 1, MimeType: ".png", UploadedAt: 1, UserID: u.ID}
 	img2 := model.Image{Filename: "b.png", Path: "2026/02/13/b.png", Size: 1, Width: 1, Height: 1, MimeType: ".png", UploadedAt: 1, UserID: u.ID}
-	_ = db.DB.Create(&img1).Error
-	_ = db.DB.Create(&img2).Error
+	_ = testGormDB.Create(&img1).Error
+	_ = testGormDB.Create(&img2).Error
 
 	cnt, err := testService.GetUserImageCount(u.ID)
 	if err != nil {
@@ -232,11 +231,11 @@ func TestListImagesForAdmin_Filters(t *testing.T) {
 
 	u1 := model.User{Username: "alice", Password: "x", Status: 1, Email: "a@example.com"}
 	u2 := model.User{Username: "bob", Password: "x", Status: 1, Email: "b@example.com"}
-	_ = db.DB.Create(&u1).Error
-	_ = db.DB.Create(&u2).Error
+	_ = testGormDB.Create(&u1).Error
+	_ = testGormDB.Create(&u2).Error
 
-	_ = db.DB.Create(&model.Image{Filename: "a.png", Path: "2026/02/13/a.png", Size: 1, Width: 1, Height: 1, MimeType: ".png", UploadedAt: 1, UserID: u1.ID}).Error
-	_ = db.DB.Create(&model.Image{Filename: "b.png", Path: "2026/02/13/b.png", Size: 1, Width: 1, Height: 1, MimeType: ".png", UploadedAt: 1, UserID: u2.ID}).Error
+	_ = testGormDB.Create(&model.Image{Filename: "a.png", Path: "2026/02/13/a.png", Size: 1, Width: 1, Height: 1, MimeType: ".png", UploadedAt: 1, UserID: u1.ID}).Error
+	_ = testGormDB.Create(&model.Image{Filename: "b.png", Path: "2026/02/13/b.png", Size: 1, Width: 1, Height: 1, MimeType: ".png", UploadedAt: 1, UserID: u2.ID}).Error
 
 	images, total, _, _, err := testService.AdminListImages(moduledto.AdminImageListRequest{
 		PaginationRequest: moduledto.PaginationRequest{Page: 1, PageSize: 10},

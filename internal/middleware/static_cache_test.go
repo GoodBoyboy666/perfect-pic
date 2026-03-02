@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"perfect-pic-server/internal/consts"
-	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/model"
 
 	"github.com/gin-gonic/gin"
@@ -17,7 +16,7 @@ func TestStaticCacheMiddleware_SetsCacheControl(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	setupTestDB(t)
 
-	if err := db.DB.Save(&model.Setting{Key: consts.ConfigStaticCacheControl, Value: "public, max-age=60"}).Error; err != nil {
+	if err := testGormDB.Save(&model.Setting{Key: consts.ConfigStaticCacheControl, Value: "public, max-age=60"}).Error; err != nil {
 		t.Fatalf("设置配置项失败: %v", err)
 	}
 	testService.ClearCache()

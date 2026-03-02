@@ -13,7 +13,6 @@ import (
 	"os/signal"
 	"path/filepath"
 	"perfect-pic-server/internal/config"
-	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/di"
 	"perfect-pic-server/internal/middleware"
 	"perfect-pic-server/internal/service"
@@ -42,11 +41,19 @@ func main() {
 	config.InitConfig(*configDir)
 	_ = service.GetRedisClient()
 	defer func() { _ = service.CloseRedisClient() }()
-	db.InitDB()
-	app, err := di.InitializeApplication(db.DB)
+	app, err := di.InitializeApplication()
 	if err != nil {
 		log.Fatal("❌ 依赖注入初始化失败: ", err)
 	}
+	sqlDB, err := app.GormDB.DB()
+	if err != nil {
+		log.Fatal("❌ 无法获取 sql.DB: ", err)
+	}
+	defer func() {
+		if closeErr := sqlDB.Close(); closeErr != nil {
+			log.Printf("⚠️ 关闭数据库连接池失败: %v", closeErr)
+		}
+	}()
 	if err := app.DbConfig.InitializeSettings(); err != nil {
 		log.Fatal("❌ 初始化默认系统设置失败: ", err)
 	}

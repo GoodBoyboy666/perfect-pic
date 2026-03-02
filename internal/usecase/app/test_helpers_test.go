@@ -35,11 +35,14 @@ type appFixture struct {
 	passkeyUC      *PasskeyUseCase
 }
 
+var testGormDB *gorm.DB
+
 func setupAppFixture(t *testing.T) *appFixture {
 	t.Helper()
 	config.InitConfig("")
 
 	gdb := testutils.SetupDB(t)
+	testGormDB = gdb
 	userStore := repository.NewUserRepository(gdb)
 	imageStore := repository.NewImageRepository(gdb)
 	settingStore := repository.NewSettingRepository(gdb)

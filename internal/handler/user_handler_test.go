@@ -11,7 +11,6 @@ import (
 	"strconv"
 	"testing"
 
-	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/model"
 	"perfect-pic-server/internal/testutils"
 
@@ -25,7 +24,7 @@ func TestGetSelfInfo_OK(t *testing.T) {
 	setupTestDB(t)
 
 	u := model.User{Username: "alice", Password: "x", Status: 1, Email: "a@example.com"}
-	_ = db.DB.Create(&u).Error
+	_ = testGormDB.Create(&u).Error
 
 	r := gin.New()
 	r.GET("/me", func(c *gin.Context) { c.Set("id", u.ID); c.Next() }, testHandler.GetSelfInfo)
@@ -44,7 +43,7 @@ func TestUpdateSelfUsername_ValidAndInvalid(t *testing.T) {
 
 	hashed, _ := bcrypt.GenerateFromPassword([]byte("abc12345"), bcrypt.DefaultCost)
 	u := model.User{Username: "alice", Password: string(hashed), Status: 1, Email: "a@example.com"}
-	_ = db.DB.Create(&u).Error
+	_ = testGormDB.Create(&u).Error
 
 	r := gin.New()
 	r.PATCH("/username", func(c *gin.Context) { c.Set("id", u.ID); c.Set("admin", true); c.Next() }, testHandler.UpdateSelfUsername)
@@ -71,7 +70,7 @@ func TestUpdateSelfPassword(t *testing.T) {
 
 	hashed, _ := bcrypt.GenerateFromPassword([]byte("abc12345"), bcrypt.DefaultCost)
 	u := model.User{Username: "alice", Password: string(hashed), Status: 1, Email: "a@example.com"}
-	_ = db.DB.Create(&u).Error
+	_ = testGormDB.Create(&u).Error
 
 	r := gin.New()
 	r.PATCH("/password", func(c *gin.Context) { c.Set("id", u.ID); c.Next() }, testHandler.UpdateSelfPassword)
@@ -103,7 +102,7 @@ func TestUpdateSelfAvatar_OK(t *testing.T) {
 
 	hashed, _ := bcrypt.GenerateFromPassword([]byte("abc12345"), bcrypt.DefaultCost)
 	u := model.User{Username: "alice", Password: string(hashed), Status: 1, Email: "a@example.com"}
-	_ = db.DB.Create(&u).Error
+	_ = testGormDB.Create(&u).Error
 
 	var body bytes.Buffer
 	w := multipart.NewWriter(&body)
@@ -137,7 +136,7 @@ func TestRequestUpdateEmailHandler_ForbiddenOnWrongPassword(t *testing.T) {
 
 	hashed, _ := bcrypt.GenerateFromPassword([]byte("abc12345"), bcrypt.DefaultCost)
 	u := model.User{Username: "alice", Password: string(hashed), Status: 1, Email: "a@example.com"}
-	_ = db.DB.Create(&u).Error
+	_ = testGormDB.Create(&u).Error
 
 	r := gin.New()
 	r.POST("/email", func(c *gin.Context) { c.Set("id", u.ID); c.Next() }, testHandler.RequestUpdateEmail)
@@ -156,8 +155,8 @@ func TestGetSelfImagesCountHandler_OK(t *testing.T) {
 	setupTestDB(t)
 
 	u := model.User{Username: "alice", Password: "x", Status: 1, Email: "a@example.com"}
-	_ = db.DB.Create(&u).Error
-	_ = db.DB.Create(&model.Image{Filename: "a.png", Path: "2026/02/13/a.png", Size: 1, Width: 1, Height: 1, MimeType: ".png", UploadedAt: 1, UserID: u.ID}).Error
+	_ = testGormDB.Create(&u).Error
+	_ = testGormDB.Create(&model.Image{Filename: "a.png", Path: "2026/02/13/a.png", Size: 1, Width: 1, Height: 1, MimeType: ".png", UploadedAt: 1, UserID: u.ID}).Error
 
 	r := gin.New()
 	r.GET("/count", func(c *gin.Context) { c.Set("id", u.ID); c.Next() }, testHandler.GetSelfImagesCount)
@@ -175,7 +174,7 @@ func TestBeginPasskeyRegistrationHandler_OK(t *testing.T) {
 	setupTestDB(t)
 
 	u := model.User{Username: "alice", Password: "x", Status: 1, Email: "a@example.com"}
-	_ = db.DB.Create(&u).Error
+	_ = testGormDB.Create(&u).Error
 
 	r := gin.New()
 	r.POST("/passkeys/register/start", func(c *gin.Context) { c.Set("id", u.ID); c.Next() }, testHandler.BeginPasskeyRegistration)
@@ -194,9 +193,9 @@ func TestBeginPasskeyRegistrationHandler_ConflictWhenLimitExceeded(t *testing.T)
 	setupTestDB(t)
 
 	u := model.User{Username: "alice", Password: "x", Status: 1, Email: "a@example.com"}
-	_ = db.DB.Create(&u).Error
+	_ = testGormDB.Create(&u).Error
 	for i := 0; i < 10; i++ {
-		_ = db.DB.Create(&model.PasskeyCredential{
+		_ = testGormDB.Create(&model.PasskeyCredential{
 			UserID:       u.ID,
 			CredentialID: "cred_limit_" + string(rune('a'+i)),
 			Credential:   `{}`,
@@ -220,7 +219,7 @@ func TestFinishPasskeyRegistrationHandler_InvalidSession(t *testing.T) {
 	setupTestDB(t)
 
 	u := model.User{Username: "alice", Password: "x", Status: 1, Email: "a@example.com"}
-	_ = db.DB.Create(&u).Error
+	_ = testGormDB.Create(&u).Error
 
 	r := gin.New()
 	r.POST("/passkeys/register/finish", func(c *gin.Context) { c.Set("id", u.ID); c.Next() }, testHandler.FinishPasskeyRegistration)
@@ -242,8 +241,8 @@ func TestListSelfPasskeysHandler_OK(t *testing.T) {
 	setupTestDB(t)
 
 	u := model.User{Username: "alice", Password: "x", Status: 1, Email: "a@example.com"}
-	_ = db.DB.Create(&u).Error
-	_ = db.DB.Create(&model.PasskeyCredential{
+	_ = testGormDB.Create(&u).Error
+	_ = testGormDB.Create(&model.PasskeyCredential{
 		UserID:       u.ID,
 		CredentialID: "cred_1",
 		Name:         "Office Key",
@@ -283,13 +282,13 @@ func TestDeleteSelfPasskeyHandler_OK(t *testing.T) {
 	setupTestDB(t)
 
 	u := model.User{Username: "alice", Password: "x", Status: 1, Email: "a@example.com"}
-	_ = db.DB.Create(&u).Error
+	_ = testGormDB.Create(&u).Error
 	pk := model.PasskeyCredential{
 		UserID:       u.ID,
 		CredentialID: "cred_del",
 		Credential:   `{}`,
 	}
-	_ = db.DB.Create(&pk).Error
+	_ = testGormDB.Create(&pk).Error
 
 	r := gin.New()
 	r.DELETE("/passkeys/:id", func(c *gin.Context) { c.Set("id", u.ID); c.Next() }, testHandler.DeleteSelfPasskey)
@@ -307,7 +306,7 @@ func TestDeleteSelfPasskeyHandler_NotFound(t *testing.T) {
 	setupTestDB(t)
 
 	u := model.User{Username: "alice", Password: "x", Status: 1, Email: "a@example.com"}
-	_ = db.DB.Create(&u).Error
+	_ = testGormDB.Create(&u).Error
 
 	r := gin.New()
 	r.DELETE("/passkeys/:id", func(c *gin.Context) { c.Set("id", u.ID); c.Next() }, testHandler.DeleteSelfPasskey)
@@ -325,14 +324,14 @@ func TestUpdateSelfPasskeyNameHandler_OK(t *testing.T) {
 	setupTestDB(t)
 
 	u := model.User{Username: "alice", Password: "x", Status: 1, Email: "a@example.com"}
-	_ = db.DB.Create(&u).Error
+	_ = testGormDB.Create(&u).Error
 	pk := model.PasskeyCredential{
 		UserID:       u.ID,
 		CredentialID: "cred_name_1",
 		Name:         "旧名称",
 		Credential:   `{}`,
 	}
-	_ = db.DB.Create(&pk).Error
+	_ = testGormDB.Create(&pk).Error
 
 	r := gin.New()
 	r.PATCH("/passkeys/:id/name", func(c *gin.Context) { c.Set("id", u.ID); c.Next() }, testHandler.UpdateSelfPasskeyName)
@@ -345,7 +344,7 @@ func TestUpdateSelfPasskeyNameHandler_OK(t *testing.T) {
 	}
 
 	var got model.PasskeyCredential
-	if err := db.DB.First(&got, pk.ID).Error; err != nil {
+	if err := testGormDB.First(&got, pk.ID).Error; err != nil {
 		t.Fatalf("查询 Passkey 失败: %v", err)
 	}
 	if got.Name != "My iPhone" {
@@ -359,7 +358,7 @@ func TestUpdateSelfPasskeyNameHandler_BadRequest(t *testing.T) {
 	setupTestDB(t)
 
 	u := model.User{Username: "alice", Password: "x", Status: 1, Email: "a@example.com"}
-	_ = db.DB.Create(&u).Error
+	_ = testGormDB.Create(&u).Error
 
 	r := gin.New()
 	r.PATCH("/passkeys/:id/name", func(c *gin.Context) { c.Set("id", u.ID); c.Next() }, testHandler.UpdateSelfPasskeyName)

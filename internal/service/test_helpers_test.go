@@ -16,6 +16,7 @@ import (
 
 var (
 	testService *Service
+	testGormDB  *gorm.DB
 )
 
 // Service 是测试专用聚合器，仅做服务层直连转发，不复制业务编排逻辑。
@@ -35,6 +36,7 @@ func setupTestDB(t *testing.T) *gorm.DB {
 	config.InitConfig("")
 
 	gdb := testutils.SetupDB(t)
+	testGormDB = gdb
 	userStore := repository.NewUserRepository(gdb)
 	imageStore := repository.NewImageRepository(gdb)
 	settingStore := repository.NewSettingRepository(gdb)

@@ -2,7 +2,6 @@ package app
 
 import (
 	"perfect-pic-server/internal/common"
-	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/model"
 	"testing"
 
@@ -19,7 +18,7 @@ func TestUserUseCase_RequestEmailChange_ValidationBranches(t *testing.T) {
 		Status:   1,
 		Email:    "alice@example.com",
 	}
-	if err := db.DB.Create(&u).Error; err != nil {
+	if err := testGormDB.Create(&u).Error; err != nil {
 		t.Fatalf("create user failed: %v", err)
 	}
 
@@ -43,7 +42,7 @@ func TestUserUseCase_RequestEmailChange_Success(t *testing.T) {
 		Status:   1,
 		Email:    "alice@example.com",
 	}
-	if err := db.DB.Create(&u).Error; err != nil {
+	if err := testGormDB.Create(&u).Error; err != nil {
 		t.Fatalf("create user failed: %v", err)
 	}
 
