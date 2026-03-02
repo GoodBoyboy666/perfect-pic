@@ -5,6 +5,7 @@ package di
 
 import (
 	"perfect-pic-server/internal/config"
+	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/handler"
 	"perfect-pic-server/internal/repository"
 	"perfect-pic-server/internal/router"
@@ -13,11 +14,11 @@ import (
 	"perfect-pic-server/internal/usecase/app"
 
 	"github.com/google/wire"
-	"gorm.io/gorm"
 )
 
-func InitializeApplication(gormDB *gorm.DB) (*Application, error) {
+func InitializeApplication() (*Application, error) {
 	wire.Build(
+		db.NewGormDB,
 		repository.NewUserRepository,
 		repository.NewImageRepository,
 		repository.NewSettingRepository,

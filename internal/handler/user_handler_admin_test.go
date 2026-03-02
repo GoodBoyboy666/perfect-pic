@@ -9,7 +9,6 @@ import (
 	"os"
 	"testing"
 
-	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/model"
 	"perfect-pic-server/internal/testutils"
 
@@ -28,7 +27,7 @@ func TestUserManageHandlers_CRUD(t *testing.T) {
 
 	// 为列表/更新/删除测试预置一个用户。
 	u := model.User{Username: "seed", Password: "x", Status: 1, Email: "seed@example.com"}
-	_ = db.DB.Create(&u).Error
+	_ = testGormDB.Create(&u).Error
 
 	r := gin.New()
 	r.GET("/users", testHandler.GetUserList)

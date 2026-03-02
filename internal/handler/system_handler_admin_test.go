@@ -6,7 +6,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/model"
 
 	"github.com/gin-gonic/gin"
@@ -18,10 +17,10 @@ func TestGetServerStats_ReturnsCounts(t *testing.T) {
 	setupTestDB(t)
 
 	u := model.User{Username: "u1", Password: "x", Status: 1, Email: "u1@example.com"}
-	if err := db.DB.Create(&u).Error; err != nil {
+	if err := testGormDB.Create(&u).Error; err != nil {
 		t.Fatalf("创建用户失败: %v", err)
 	}
-	_ = db.DB.Create(&model.Image{
+	_ = testGormDB.Create(&model.Image{
 		Filename:   "a.png",
 		Path:       "2026/02/13/a.png",
 		Size:       10,

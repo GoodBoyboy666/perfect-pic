@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"perfect-pic-server/internal/consts"
-	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/model"
 
 	"golang.org/x/crypto/bcrypt"
@@ -94,7 +93,7 @@ func TestDeleteUserFiles_RemovesAvatarDirAndImages(t *testing.T) {
 	defer func() { _ = os.Chdir(oldwd) }()
 
 	userID := uint(7)
-	_ = db.DB.Create(&model.User{
+	_ = testGormDB.Create(&model.User{
 		ID:       userID,
 		Username: "user_7",
 		Password: "x",
@@ -121,7 +120,7 @@ func TestDeleteUserFiles_RemovesAvatarDirAndImages(t *testing.T) {
 		t.Fatalf("写入图片文件失败: %v", err)
 	}
 
-	if err := db.DB.Create(&model.Image{
+	if err := testGormDB.Create(&model.Image{
 		Filename:   "x.png",
 		Path:       imgRel,
 		Size:       4,
@@ -242,14 +241,14 @@ func TestGetSystemDefaultStorageQuota(t *testing.T) {
 	}
 
 	// 覆盖为自定义值。
-	_ = db.DB.Save(&model.Setting{Key: consts.ConfigDefaultStorageQuota, Value: "123"}).Error
+	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigDefaultStorageQuota, Value: "123"}).Error
 	testService.ClearCache()
 	if got := testService.GetSystemDefaultStorageQuota(); got != 123 {
 		t.Fatalf("期望 123，实际为 %d", got)
 	}
 
 	// 非法值（<=0）应统一回退到默认 1GB。
-	_ = db.DB.Save(&model.Setting{Key: consts.ConfigDefaultStorageQuota, Value: "-1"}).Error
+	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigDefaultStorageQuota, Value: "-1"}).Error
 	testService.ClearCache()
 	if got := testService.GetSystemDefaultStorageQuota(); got != 1073741824 {
 		t.Fatalf("期望 fallback 1GB，实际为 %d", got)
@@ -261,7 +260,7 @@ func TestGetUserDetailForAdmin(t *testing.T) {
 	setupTestDB(t)
 
 	u := model.User{Username: "alice", Password: "x", Status: 1, Email: "a@example.com"}
-	_ = db.DB.Create(&u).Error
+	_ = testGormDB.Create(&u).Error
 
 	got, err := testService.AdminGetUserDetail(u.ID)
 	if err != nil {
@@ -279,9 +278,9 @@ func TestListUsersForAdmin_FilterAndShowDeleted(t *testing.T) {
 	hashed, _ := bcrypt.GenerateFromPassword([]byte("abc12345"), bcrypt.DefaultCost)
 	u1 := model.User{Username: "alice", Password: string(hashed), Status: 1, Email: "a@example.com"}
 	u2 := model.User{Username: "bob", Password: string(hashed), Status: 1, Email: "b@example.com"}
-	_ = db.DB.Create(&u1).Error
-	_ = db.DB.Create(&u2).Error
-	_ = db.DB.Delete(&u2).Error
+	_ = testGormDB.Create(&u1).Error
+	_ = testGormDB.Create(&u2).Error
+	_ = testGormDB.Delete(&u2).Error
 
 	users, total, err := testService.AdminListUsers(moduledto.AdminUserListRequest{Page: 1, PageSize: 10, Keyword: "ali"})
 	if err != nil {
@@ -381,7 +380,7 @@ func TestPrepareAndApplyUserUpdatesForAdmin(t *testing.T) {
 
 	hashed, _ := bcrypt.GenerateFromPassword([]byte("abc12345"), bcrypt.DefaultCost)
 	u := model.User{Username: "alice", Password: string(hashed), Status: 1, Email: "a@example.com"}
-	_ = db.DB.Create(&u).Error
+	_ = testGormDB.Create(&u).Error
 
 	newName := "alice2"
 	newStatus := 2
@@ -394,7 +393,7 @@ func TestPrepareAndApplyUserUpdatesForAdmin(t *testing.T) {
 	}
 
 	var got model.User
-	_ = db.DB.First(&got, u.ID).Error
+	_ = testGormDB.First(&got, u.ID).Error
 	if got.Username != "alice2" || got.Status != 2 {
 		t.Fatalf("非预期 user after update: %+v", got)
 	}
@@ -406,7 +405,7 @@ func TestPrepareAndApplyUserUpdatesForAdmin_AllowsReservedUsername(t *testing.T)
 
 	hashed, _ := bcrypt.GenerateFromPassword([]byte("abc12345"), bcrypt.DefaultCost)
 	u := model.User{Username: "alice", Password: string(hashed), Status: 1, Email: "a@example.com"}
-	_ = db.DB.Create(&u).Error
+	_ = testGormDB.Create(&u).Error
 
 	newName := "admin"
 	updates, err := testService.AdminPrepareUserUpdates(u.ID, moduledto.AdminUserUpdateRequest{Username: &newName})
@@ -418,7 +417,7 @@ func TestPrepareAndApplyUserUpdatesForAdmin_AllowsReservedUsername(t *testing.T)
 	}
 
 	var got model.User
-	_ = db.DB.First(&got, u.ID).Error
+	_ = testGormDB.First(&got, u.ID).Error
 	if got.Username != "admin" {
 		t.Fatalf("非预期 user after update: %+v", got)
 	}
@@ -430,7 +429,7 @@ func TestPrepareUserUpdatesForAdmin_MoreBranches(t *testing.T) {
 
 	hashed, _ := bcrypt.GenerateFromPassword([]byte("abc12345"), bcrypt.DefaultCost)
 	u := model.User{Username: "alice", Password: string(hashed), Status: 1, Email: "a@example.com"}
-	_ = db.DB.Create(&u).Error
+	_ = testGormDB.Create(&u).Error
 
 	// 无效状态
 	badStatus := 9
@@ -444,7 +443,7 @@ func TestPrepareUserUpdatesForAdmin_MoreBranches(t *testing.T) {
 
 	// 邮箱已被占用
 	u2 := model.User{Username: "bobby", Password: string(hashed), Status: 1, Email: "taken@example.com"}
-	_ = db.DB.Create(&u2).Error
+	_ = testGormDB.Create(&u2).Error
 	newEmail := "taken@example.com"
 	_, err = testService.AdminPrepareUserUpdates(u.ID, moduledto.AdminUserUpdateRequest{Email: &newEmail})
 	assertServiceErrorCode(t, err, platformservice.ErrorCodeConflict)
@@ -461,7 +460,7 @@ func TestPrepareUserUpdatesForAdmin_MoreBranches(t *testing.T) {
 	}
 
 	var got model.User
-	_ = db.DB.First(&got, u.ID).Error
+	_ = testGormDB.First(&got, u.ID).Error
 	if got.StorageQuota != nil {
 		t.Fatalf("期望 quota cleared，实际为 %+v", got.StorageQuota)
 	}
@@ -475,10 +474,10 @@ func TestIsUsernameTaken_IncludeDeleted(t *testing.T) {
 	setupTestDB(t)
 
 	u := model.User{Username: "alice", Password: "x", Status: 1, Email: "a@example.com"}
-	if err := db.DB.Create(&u).Error; err != nil {
+	if err := testGormDB.Create(&u).Error; err != nil {
 		t.Fatalf("创建用户失败: %v", err)
 	}
-	if err := db.DB.Delete(&u).Error; err != nil {
+	if err := testGormDB.Delete(&u).Error; err != nil {
 		t.Fatalf("soft delete user: %v", err)
 	}
 
@@ -505,10 +504,10 @@ func TestIsEmailTaken_ExcludeUserID(t *testing.T) {
 
 	u1 := model.User{Username: "a1", Password: "x", Status: 1, Email: "x@example.com"}
 	u2 := model.User{Username: "a2", Password: "x", Status: 1, Email: "y@example.com"}
-	if err := db.DB.Create(&u1).Error; err != nil {
+	if err := testGormDB.Create(&u1).Error; err != nil {
 		t.Fatalf("创建用户1失败: %v", err)
 	}
-	if err := db.DB.Create(&u2).Error; err != nil {
+	if err := testGormDB.Create(&u2).Error; err != nil {
 		t.Fatalf("创建用户2失败: %v", err)
 	}
 
@@ -537,7 +536,7 @@ func TestGetUserProfile(t *testing.T) {
 		StorageQuota: &q,
 		StorageUsed:  10,
 	}
-	_ = db.DB.Create(&u).Error
+	_ = testGormDB.Create(&u).Error
 
 	profile, err := testService.GetUserProfile(u.ID)
 	if err != nil {
@@ -554,7 +553,7 @@ func TestUpdateUsernameAndGenerateToken(t *testing.T) {
 
 	hashed, _ := bcrypt.GenerateFromPassword([]byte("abc12345"), bcrypt.DefaultCost)
 	u := model.User{Username: "alice", Password: string(hashed), Status: 1, Email: "a@example.com"}
-	_ = db.DB.Create(&u).Error
+	_ = testGormDB.Create(&u).Error
 
 	token, err := testService.UpdateUsernameAndGenerateToken(u.ID, "ab", false)
 	if token != "" {
@@ -563,7 +562,7 @@ func TestUpdateUsernameAndGenerateToken(t *testing.T) {
 	assertServiceErrorCode(t, err, platformservice.ErrorCodeValidation)
 
 	u2 := model.User{Username: "bobby", Password: string(hashed), Status: 1, Email: "b@example.com"}
-	_ = db.DB.Create(&u2).Error
+	_ = testGormDB.Create(&u2).Error
 	_, err = testService.UpdateUsernameAndGenerateToken(u.ID, "bobby", false)
 	if serviceErr := assertServiceErrorCode(t, err, platformservice.ErrorCodeConflict); serviceErr.Message != "用户名已存在" {
 		t.Fatalf("期望 conflict message，实际为 %q", serviceErr.Message)
@@ -583,7 +582,7 @@ func TestUpdatePasswordByOldPassword(t *testing.T) {
 
 	hashed, _ := bcrypt.GenerateFromPassword([]byte("abc12345"), bcrypt.DefaultCost)
 	u := model.User{Username: "alice", Password: string(hashed), Status: 1, Email: "a@example.com"}
-	_ = db.DB.Create(&u).Error
+	_ = testGormDB.Create(&u).Error
 
 	err := testService.UpdatePasswordByOldPassword(u.ID, "abc12345", "short")
 	assertServiceErrorCode(t, err, platformservice.ErrorCodeValidation)
@@ -599,7 +598,7 @@ func TestUpdatePasswordByOldPassword(t *testing.T) {
 	}
 
 	var got model.User
-	_ = db.DB.First(&got, u.ID).Error
+	_ = testGormDB.First(&got, u.ID).Error
 	if bcrypt.CompareHashAndPassword([]byte(got.Password), []byte("abc123456")) != nil {
 		t.Fatalf("期望 password to be updated")
 	}

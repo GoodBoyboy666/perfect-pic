@@ -22,11 +22,14 @@ type adminFixture struct {
 	imageService *service.ImageService
 }
 
+var testGormDB *gorm.DB
+
 func setupAdminFixture(t *testing.T) *adminFixture {
 	t.Helper()
 	config.InitConfig("")
 
 	gdb := testutils.SetupDB(t)
+	testGormDB = gdb
 	userStore := repository.NewUserRepository(gdb)
 	imageStore := repository.NewImageRepository(gdb)
 	settingStore := repository.NewSettingRepository(gdb)

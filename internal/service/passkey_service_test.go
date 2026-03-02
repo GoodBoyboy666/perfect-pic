@@ -5,7 +5,6 @@ import (
 	platformservice "perfect-pic-server/internal/common"
 	"testing"
 
-	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/model"
 
 	"github.com/go-webauthn/webauthn/webauthn"
@@ -22,7 +21,7 @@ func TestListUserPasskeys_Success(t *testing.T) {
 		Email:         "a@example.com",
 		EmailVerified: true,
 	}
-	if err := db.DB.Create(&u).Error; err != nil {
+	if err := testGormDB.Create(&u).Error; err != nil {
 		t.Fatalf("创建用户失败: %v", err)
 	}
 
@@ -32,7 +31,7 @@ func TestListUserPasskeys_Success(t *testing.T) {
 		Name:         "MacBook Pro",
 		Credential:   mustMarshalPasskeyCredentialForTest(t, webauthn.Credential{ID: []byte{1, 2, 3}}),
 	}
-	if err := db.DB.Create(&record).Error; err != nil {
+	if err := testGormDB.Create(&record).Error; err != nil {
 		t.Fatalf("创建 Passkey 失败: %v", err)
 	}
 
@@ -56,7 +55,7 @@ func TestDeleteUserPasskey_Success(t *testing.T) {
 	setupTestDB(t)
 
 	u := model.User{Username: "alice", Password: "x", Status: 1, Email: "a@example.com"}
-	if err := db.DB.Create(&u).Error; err != nil {
+	if err := testGormDB.Create(&u).Error; err != nil {
 		t.Fatalf("创建用户失败: %v", err)
 	}
 
@@ -65,7 +64,7 @@ func TestDeleteUserPasskey_Success(t *testing.T) {
 		CredentialID: "cred_del",
 		Credential:   mustMarshalPasskeyCredentialForTest(t, webauthn.Credential{ID: []byte{9, 9, 9}}),
 	}
-	if err := db.DB.Create(&record).Error; err != nil {
+	if err := testGormDB.Create(&record).Error; err != nil {
 		t.Fatalf("创建 Passkey 失败: %v", err)
 	}
 
@@ -74,7 +73,7 @@ func TestDeleteUserPasskey_Success(t *testing.T) {
 	}
 
 	var count int64
-	if err := db.DB.Model(&model.PasskeyCredential{}).Where("id = ?", record.ID).Count(&count).Error; err != nil {
+	if err := testGormDB.Model(&model.PasskeyCredential{}).Where("id = ?", record.ID).Count(&count).Error; err != nil {
 		t.Fatalf("查询 Passkey 失败: %v", err)
 	}
 	if count != 0 {
@@ -102,7 +101,7 @@ func TestUpdateUserPasskeyName_Success(t *testing.T) {
 	setupTestDB(t)
 
 	u := model.User{Username: "alice", Password: "x", Status: 1, Email: "a@example.com"}
-	if err := db.DB.Create(&u).Error; err != nil {
+	if err := testGormDB.Create(&u).Error; err != nil {
 		t.Fatalf("创建用户失败: %v", err)
 	}
 
@@ -112,7 +111,7 @@ func TestUpdateUserPasskeyName_Success(t *testing.T) {
 		Name:         "旧名称",
 		Credential:   mustMarshalPasskeyCredentialForTest(t, webauthn.Credential{ID: []byte{1, 9, 9}}),
 	}
-	if err := db.DB.Create(&record).Error; err != nil {
+	if err := testGormDB.Create(&record).Error; err != nil {
 		t.Fatalf("创建 Passkey 失败: %v", err)
 	}
 
@@ -121,7 +120,7 @@ func TestUpdateUserPasskeyName_Success(t *testing.T) {
 	}
 
 	var got model.PasskeyCredential
-	if err := db.DB.First(&got, record.ID).Error; err != nil {
+	if err := testGormDB.First(&got, record.ID).Error; err != nil {
 		t.Fatalf("查询 Passkey 失败: %v", err)
 	}
 	if got.Name != "iPhone" {

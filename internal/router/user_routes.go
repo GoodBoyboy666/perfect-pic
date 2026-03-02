@@ -7,12 +7,13 @@ import (
 	"perfect-pic-server/internal/middleware"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
-func registerUserRoutes(api *gin.RouterGroup, userHandler *handler.UserHandler, imageHandler *handler.ImageHandler, dbConfig *config.DBConfig) {
+func registerUserRoutes(api *gin.RouterGroup, userHandler *handler.UserHandler, imageHandler *handler.ImageHandler, dbConfig *config.DBConfig, gormDB *gorm.DB) {
 	userGroup := api.Group("/user")
 	userGroup.Use(middleware.JWTAuth())
-	userGroup.Use(middleware.UserStatusCheck())
+	userGroup.Use(middleware.UserStatusCheck(gormDB))
 	bodyLimit := middleware.BodyLimitMiddleware(dbConfig)
 
 	// 修改用户名请求间隔：读取配置（秒）

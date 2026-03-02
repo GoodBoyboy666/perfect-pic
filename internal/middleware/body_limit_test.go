@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"perfect-pic-server/internal/consts"
-	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/model"
 
 	"github.com/gin-gonic/gin"
@@ -20,7 +19,7 @@ func TestUploadBodyLimitMiddleware_RejectsTooLarge(t *testing.T) {
 	setupTestDB(t)
 
 	// 1MB 限制。
-	if err := db.DB.Save(&model.Setting{Key: consts.ConfigMaxUploadSize, Value: "1"}).Error; err != nil {
+	if err := testGormDB.Save(&model.Setting{Key: consts.ConfigMaxUploadSize, Value: "1"}).Error; err != nil {
 		t.Fatalf("设置配置项失败: %v", err)
 	}
 	testService.ClearCache()
@@ -45,7 +44,7 @@ func TestBodyLimitMiddleware_LimitsNonUploadRoutes(t *testing.T) {
 	setupTestDB(t)
 
 	// 1MB 限制
-	_ = db.DB.Save(&model.Setting{Key: consts.ConfigMaxRequestBodySize, Value: "1"}).Error
+	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigMaxRequestBodySize, Value: "1"}).Error
 	testService.ClearCache()
 
 	r := gin.New()
@@ -75,7 +74,7 @@ func TestBodyLimitMiddleware_DoesNotBypassByPathSuffix(t *testing.T) {
 	setupTestDB(t)
 
 	// 1MB 限制
-	_ = db.DB.Save(&model.Setting{Key: consts.ConfigMaxRequestBodySize, Value: "1"}).Error
+	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigMaxRequestBodySize, Value: "1"}).Error
 	testService.ClearCache()
 
 	r := gin.New()

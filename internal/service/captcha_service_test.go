@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"perfect-pic-server/internal/consts"
-	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/model"
 	"perfect-pic-server/internal/utils"
 )
@@ -29,7 +28,7 @@ func TestGetCaptchaProviderInfo_DefaultIsImage(t *testing.T) {
 func TestGetCaptchaProviderInfo_UnknownFallsBackToImage(t *testing.T) {
 	setupTestDB(t)
 
-	_ = db.DB.Save(&model.Setting{Key: consts.ConfigCaptchaProvider, Value: "unknown"}).Error
+	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigCaptchaProvider, Value: "unknown"}).Error
 	testService.ClearCache()
 
 	info := testService.GetCaptchaProviderInfo()
@@ -42,7 +41,7 @@ func TestGetCaptchaProviderInfo_UnknownFallsBackToImage(t *testing.T) {
 func TestGetCaptchaProviderInfo_Disabled(t *testing.T) {
 	setupTestDB(t)
 
-	_ = db.DB.Save(&model.Setting{Key: consts.ConfigCaptchaProvider, Value: ""}).Error
+	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigCaptchaProvider, Value: ""}).Error
 	testService.ClearCache()
 
 	info := testService.GetCaptchaProviderInfo()
@@ -67,8 +66,8 @@ func TestGetCaptchaProviderInfo_PublicConfigByProvider(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		_ = db.DB.Save(&model.Setting{Key: consts.ConfigCaptchaProvider, Value: tc.provider}).Error
-		_ = db.DB.Save(&model.Setting{Key: tc.key, Value: "pub"}).Error
+		_ = testGormDB.Save(&model.Setting{Key: consts.ConfigCaptchaProvider, Value: tc.provider}).Error
+		_ = testGormDB.Save(&model.Setting{Key: tc.key, Value: "pub"}).Error
 		testService.ClearCache()
 
 		info := testService.GetCaptchaProviderInfo()
@@ -85,7 +84,7 @@ func TestGetCaptchaProviderInfo_PublicConfigByProvider(t *testing.T) {
 func TestVerifyCaptchaChallenge_DisabledProviderAlwaysOK(t *testing.T) {
 	setupTestDB(t)
 
-	_ = db.DB.Save(&model.Setting{Key: consts.ConfigCaptchaProvider, Value: ""}).Error
+	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigCaptchaProvider, Value: ""}).Error
 	testService.ClearCache()
 
 	ok, msg := testService.VerifyCaptchaChallenge("", "", "", "1.2.3.4")
@@ -98,7 +97,7 @@ func TestVerifyCaptchaChallenge_DisabledProviderAlwaysOK(t *testing.T) {
 func TestVerifyCaptchaChallenge_ImageProviderValidates(t *testing.T) {
 	setupTestDB(t)
 
-	_ = db.DB.Save(&model.Setting{Key: consts.ConfigCaptchaProvider, Value: "image"}).Error
+	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigCaptchaProvider, Value: "image"}).Error
 	testService.ClearCache()
 
 	ok, msg := testService.VerifyCaptchaChallenge("", "", "", "1.2.3.4")
@@ -121,9 +120,9 @@ func TestVerifyCaptchaChallenge_ImageProviderValidates(t *testing.T) {
 func TestGetCaptchaProviderInfo_PublicConfig(t *testing.T) {
 	setupTestDB(t)
 
-	_ = db.DB.Save(&model.Setting{Key: consts.ConfigCaptchaProvider, Value: "turnstile"}).Error
-	_ = db.DB.Save(&model.Setting{Key: consts.ConfigCaptchaTurnstileSiteKey, Value: "site"}).Error
-	_ = db.DB.Save(&model.Setting{Key: consts.ConfigCaptchaTurnstileSecretKey, Value: "secret"}).Error
+	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigCaptchaProvider, Value: "turnstile"}).Error
+	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigCaptchaTurnstileSiteKey, Value: "site"}).Error
+	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigCaptchaTurnstileSecretKey, Value: "secret"}).Error
 	testService.ClearCache()
 
 	info := testService.GetCaptchaProviderInfo()
@@ -139,9 +138,9 @@ func TestGetCaptchaProviderInfo_PublicConfig(t *testing.T) {
 func TestVerifyCaptchaChallenge_ProviderConfigMissing(t *testing.T) {
 	setupTestDB(t)
 
-	_ = db.DB.Save(&model.Setting{Key: consts.ConfigCaptchaProvider, Value: "hcaptcha"}).Error
-	_ = db.DB.Save(&model.Setting{Key: consts.ConfigCaptchaHcaptchaSiteKey, Value: ""}).Error
-	_ = db.DB.Save(&model.Setting{Key: consts.ConfigCaptchaHcaptchaSecretKey, Value: ""}).Error
+	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigCaptchaProvider, Value: "hcaptcha"}).Error
+	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigCaptchaHcaptchaSiteKey, Value: ""}).Error
+	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigCaptchaHcaptchaSecretKey, Value: ""}).Error
 	testService.ClearCache()
 
 	ok, msg := testService.VerifyCaptchaChallenge("", "", "token", "1.1.1.1")
@@ -154,9 +153,9 @@ func TestVerifyCaptchaChallenge_ProviderConfigMissing(t *testing.T) {
 func TestVerifyCaptchaChallenge_GeetestTokenParseErrors(t *testing.T) {
 	setupTestDB(t)
 
-	_ = db.DB.Save(&model.Setting{Key: consts.ConfigCaptchaProvider, Value: "geetest"}).Error
-	_ = db.DB.Save(&model.Setting{Key: consts.ConfigCaptchaGeetestCaptchaID, Value: "id"}).Error
-	_ = db.DB.Save(&model.Setting{Key: consts.ConfigCaptchaGeetestCaptchaKey, Value: "key"}).Error
+	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigCaptchaProvider, Value: "geetest"}).Error
+	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigCaptchaGeetestCaptchaID, Value: "id"}).Error
+	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigCaptchaGeetestCaptchaKey, Value: "key"}).Error
 	testService.ClearCache()
 
 	ok, msg := testService.VerifyCaptchaChallenge("", "", "not-base64", "")
@@ -199,11 +198,11 @@ func TestVerifyCaptchaChallenge_RemoteProvidersViaTestServer(t *testing.T) {
 	defer func() { captchaHTTPClient = oldClient }()
 
 	// Turnstile：token 为空 + 成功响应 + hostname 不匹配的错误路径。
-	_ = db.DB.Save(&model.Setting{Key: consts.ConfigCaptchaProvider, Value: "turnstile"}).Error
-	_ = db.DB.Save(&model.Setting{Key: consts.ConfigCaptchaTurnstileSiteKey, Value: "site"}).Error
-	_ = db.DB.Save(&model.Setting{Key: consts.ConfigCaptchaTurnstileSecretKey, Value: "secret"}).Error
-	_ = db.DB.Save(&model.Setting{Key: consts.ConfigCaptchaTurnstileVerifyURL, Value: srv.URL + "/turnstile"}).Error
-	_ = db.DB.Save(&model.Setting{Key: consts.ConfigCaptchaTurnstileExpectedHostname, Value: ""}).Error
+	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigCaptchaProvider, Value: "turnstile"}).Error
+	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigCaptchaTurnstileSiteKey, Value: "site"}).Error
+	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigCaptchaTurnstileSecretKey, Value: "secret"}).Error
+	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigCaptchaTurnstileVerifyURL, Value: srv.URL + "/turnstile"}).Error
+	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigCaptchaTurnstileExpectedHostname, Value: ""}).Error
 	testService.ClearCache()
 
 	ok, msg := testService.VerifyCaptchaChallenge("", "", "", "1.1.1.1")
@@ -215,7 +214,7 @@ func TestVerifyCaptchaChallenge_RemoteProvidersViaTestServer(t *testing.T) {
 		t.Fatalf("期望 success，实际为 ok=%v msg=%q", ok, msg)
 	}
 
-	_ = db.DB.Save(&model.Setting{Key: consts.ConfigCaptchaTurnstileExpectedHostname, Value: "wrong-host"}).Error
+	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigCaptchaTurnstileExpectedHostname, Value: "wrong-host"}).Error
 	testService.ClearCache()
 	ok, msg = testService.VerifyCaptchaChallenge("", "", "token", "1.1.1.1")
 	if ok || msg == "" {
@@ -223,10 +222,10 @@ func TestVerifyCaptchaChallenge_RemoteProvidersViaTestServer(t *testing.T) {
 	}
 
 	// reCAPTCHA
-	_ = db.DB.Save(&model.Setting{Key: consts.ConfigCaptchaProvider, Value: "recaptcha"}).Error
-	_ = db.DB.Save(&model.Setting{Key: consts.ConfigCaptchaRecaptchaSiteKey, Value: "site"}).Error
-	_ = db.DB.Save(&model.Setting{Key: consts.ConfigCaptchaRecaptchaSecretKey, Value: "secret"}).Error
-	_ = db.DB.Save(&model.Setting{Key: consts.ConfigCaptchaRecaptchaVerifyURL, Value: srv.URL + "/recaptcha"}).Error
+	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigCaptchaProvider, Value: "recaptcha"}).Error
+	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigCaptchaRecaptchaSiteKey, Value: "site"}).Error
+	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigCaptchaRecaptchaSecretKey, Value: "secret"}).Error
+	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigCaptchaRecaptchaVerifyURL, Value: srv.URL + "/recaptcha"}).Error
 	testService.ClearCache()
 	ok, msg = testService.VerifyCaptchaChallenge("", "", "token", "1.1.1.1")
 	if !ok || msg != "" {
@@ -234,10 +233,10 @@ func TestVerifyCaptchaChallenge_RemoteProvidersViaTestServer(t *testing.T) {
 	}
 
 	// hCaptcha
-	_ = db.DB.Save(&model.Setting{Key: consts.ConfigCaptchaProvider, Value: "hcaptcha"}).Error
-	_ = db.DB.Save(&model.Setting{Key: consts.ConfigCaptchaHcaptchaSiteKey, Value: "site"}).Error
-	_ = db.DB.Save(&model.Setting{Key: consts.ConfigCaptchaHcaptchaSecretKey, Value: "secret"}).Error
-	_ = db.DB.Save(&model.Setting{Key: consts.ConfigCaptchaHcaptchaVerifyURL, Value: srv.URL + "/hcaptcha"}).Error
+	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigCaptchaProvider, Value: "hcaptcha"}).Error
+	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigCaptchaHcaptchaSiteKey, Value: "site"}).Error
+	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigCaptchaHcaptchaSecretKey, Value: "secret"}).Error
+	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigCaptchaHcaptchaVerifyURL, Value: srv.URL + "/hcaptcha"}).Error
 	testService.ClearCache()
 	ok, msg = testService.VerifyCaptchaChallenge("", "", "token", "1.1.1.1")
 	if !ok || msg != "" {
@@ -245,10 +244,10 @@ func TestVerifyCaptchaChallenge_RemoteProvidersViaTestServer(t *testing.T) {
 	}
 
 	// GeeTest
-	_ = db.DB.Save(&model.Setting{Key: consts.ConfigCaptchaProvider, Value: "geetest"}).Error
-	_ = db.DB.Save(&model.Setting{Key: consts.ConfigCaptchaGeetestCaptchaID, Value: "id"}).Error
-	_ = db.DB.Save(&model.Setting{Key: consts.ConfigCaptchaGeetestCaptchaKey, Value: "key"}).Error
-	_ = db.DB.Save(&model.Setting{Key: consts.ConfigCaptchaGeetestVerifyURL, Value: srv.URL + "/geetest"}).Error
+	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigCaptchaProvider, Value: "geetest"}).Error
+	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigCaptchaGeetestCaptchaID, Value: "id"}).Error
+	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigCaptchaGeetestCaptchaKey, Value: "key"}).Error
+	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigCaptchaGeetestVerifyURL, Value: srv.URL + "/geetest"}).Error
 	testService.ClearCache()
 
 	p := moduledto.GeetestVerifyTokenPayload{

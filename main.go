@@ -13,7 +13,6 @@ import (
 	"os/signal"
 	"path/filepath"
 	"perfect-pic-server/internal/config"
-	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/di"
 	"perfect-pic-server/internal/middleware"
 	"perfect-pic-server/internal/service"
@@ -42,8 +41,7 @@ func main() {
 	config.InitConfig(*configDir)
 	_ = service.GetRedisClient()
 	defer func() { _ = service.CloseRedisClient() }()
-	db.InitDB()
-	app, err := di.InitializeApplication(db.DB)
+	app, err := di.InitializeApplication()
 	if err != nil {
 		log.Fatal("❌ 依赖注入初始化失败: ", err)
 	}

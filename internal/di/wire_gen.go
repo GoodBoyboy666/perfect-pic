@@ -7,8 +7,8 @@
 package di
 
 import (
-	"gorm.io/gorm"
 	"perfect-pic-server/internal/config"
+	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/handler"
 	"perfect-pic-server/internal/repository"
 	"perfect-pic-server/internal/router"
@@ -19,7 +19,11 @@ import (
 
 // Injectors from wire.go:
 
-func InitializeApplication(gormDB *gorm.DB) (*Application, error) {
+func InitializeApplication() (*Application, error) {
+	gormDB, err := db.NewGormDB()
+	if err != nil {
+		return nil, err
+	}
 	settingStore := repository.NewSettingRepository(gormDB)
 	dbConfig := config.NewDBConfig(settingStore)
 	authService := service.NewAuthService(dbConfig)
@@ -46,7 +50,7 @@ func InitializeApplication(gormDB *gorm.DB) (*Application, error) {
 	imageUseCase := app.NewImageUseCase(imageService, userService, userStore, dbConfig)
 	userHandler := handler.NewUserHandler(userService, userUseCase, userManageUseCase, imageService, imageUseCase, authService, passkeyService, passkeyUseCase)
 	imageHandler := handler.NewImageHandler(imageService, imageUseCase)
-	routerRouter := router.NewRouter(authHandler, systemHandler, settingsHandler, userHandler, imageHandler, dbConfig)
-	application := NewApplication(routerRouter, dbConfig)
+	routerRouter := router.NewRouter(authHandler, systemHandler, settingsHandler, userHandler, imageHandler, dbConfig, gormDB)
+	application := NewApplication(routerRouter, dbConfig, gormDB)
 	return application, nil
 }

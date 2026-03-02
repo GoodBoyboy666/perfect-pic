@@ -11,7 +11,6 @@ import (
 	"strconv"
 	"testing"
 
-	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/model"
 	"perfect-pic-server/internal/testutils"
 
@@ -29,7 +28,7 @@ func TestUploadAndListAndDeleteImagesHandlers(t *testing.T) {
 	defer func() { _ = os.Chdir(oldwd) }()
 
 	u := model.User{Username: "alice", Password: "x", Status: 1, Email: "a@example.com"}
-	_ = db.DB.Create(&u).Error
+	_ = testGormDB.Create(&u).Error
 
 	r := gin.New()
 	r.POST("/upload", func(c *gin.Context) { c.Set("id", u.ID); c.Next() }, testHandler.UploadImage)
@@ -69,7 +68,7 @@ func TestUploadAndListAndDeleteImagesHandlers(t *testing.T) {
 
 	// 删除前解析物理文件路径。
 	var img model.Image
-	if err := db.DB.First(&img, uploadResp.ID).Error; err != nil {
+	if err := testGormDB.First(&img, uploadResp.ID).Error; err != nil {
 		t.Fatalf("加载图片失败: %v", err)
 	}
 	full := filepath.Join("uploads", "imgs", filepath.FromSlash(img.Path))
@@ -99,7 +98,7 @@ func TestBatchDeleteMyImagesHandler(t *testing.T) {
 	defer func() { _ = os.Chdir(oldwd) }()
 
 	u := model.User{Username: "alice", Password: "x", Status: 1, Email: "a@example.com"}
-	_ = db.DB.Create(&u).Error
+	_ = testGormDB.Create(&u).Error
 
 	r := gin.New()
 	r.POST("/upload", func(c *gin.Context) { c.Set("id", u.ID); c.Next() }, testHandler.UploadImage)
@@ -142,7 +141,7 @@ func TestUploadImageHandler_MissingFile(t *testing.T) {
 	setupTestDB(t)
 
 	u := model.User{Username: "alice", Password: "x", Status: 1, Email: "a@example.com"}
-	_ = db.DB.Create(&u).Error
+	_ = testGormDB.Create(&u).Error
 
 	r := gin.New()
 	r.POST("/upload", func(c *gin.Context) { c.Set("id", u.ID); c.Next() }, testHandler.UploadImage)
@@ -160,7 +159,7 @@ func TestBatchDeleteMyImagesHandler_TooManyIDs(t *testing.T) {
 	setupTestDB(t)
 
 	u := model.User{Username: "alice", Password: "x", Status: 1, Email: "a@example.com"}
-	_ = db.DB.Create(&u).Error
+	_ = testGormDB.Create(&u).Error
 
 	r := gin.New()
 	r.DELETE("/images/batch", func(c *gin.Context) { c.Set("id", u.ID); c.Next() }, testHandler.BatchDeleteMyImages)
@@ -190,7 +189,7 @@ func TestUploadImageHandler_QuotaExceededReturns403(t *testing.T) {
 
 	q := int64(1)
 	u := model.User{Username: "alice", Password: "x", Status: 1, Email: "a@example.com", StorageQuota: &q}
-	_ = db.DB.Create(&u).Error
+	_ = testGormDB.Create(&u).Error
 
 	r := gin.New()
 	r.POST("/upload", func(c *gin.Context) { c.Set("id", u.ID); c.Next() }, testHandler.UploadImage)
@@ -209,7 +208,7 @@ func TestUploadImageHandler_UnsupportedExtReturns400(t *testing.T) {
 	setupTestDB(t)
 
 	u := model.User{Username: "alice", Password: "x", Status: 1, Email: "a@example.com"}
-	_ = db.DB.Create(&u).Error
+	_ = testGormDB.Create(&u).Error
 
 	r := gin.New()
 	r.POST("/upload", func(c *gin.Context) { c.Set("id", u.ID); c.Next() }, testHandler.UploadImage)
@@ -228,7 +227,7 @@ func TestBatchDeleteMyImagesHandler_Errors(t *testing.T) {
 	setupTestDB(t)
 
 	u := model.User{Username: "alice", Password: "x", Status: 1, Email: "a@example.com"}
-	_ = db.DB.Create(&u).Error
+	_ = testGormDB.Create(&u).Error
 
 	r := gin.New()
 	r.DELETE("/images/batch", func(c *gin.Context) { c.Set("id", u.ID); c.Next() }, testHandler.BatchDeleteMyImages)
@@ -263,7 +262,7 @@ func TestGetMyImagesHandler_InvalidID(t *testing.T) {
 	setupTestDB(t)
 
 	u := model.User{Username: "alice", Password: "x", Status: 1, Email: "a@example.com"}
-	_ = db.DB.Create(&u).Error
+	_ = testGormDB.Create(&u).Error
 
 	r := gin.New()
 	r.GET("/images", func(c *gin.Context) { c.Set("id", u.ID); c.Next() }, testHandler.GetMyImages)
@@ -281,7 +280,7 @@ func TestDeleteMyImageHandler_InvalidID(t *testing.T) {
 	setupTestDB(t)
 
 	u := model.User{Username: "alice", Password: "x", Status: 1, Email: "a@example.com"}
-	_ = db.DB.Create(&u).Error
+	_ = testGormDB.Create(&u).Error
 
 	r := gin.New()
 	r.DELETE("/images/:id", func(c *gin.Context) { c.Set("id", u.ID); c.Next() }, testHandler.DeleteMyImage)

@@ -12,13 +12,14 @@ import (
 	"testing/fstest"
 
 	"perfect-pic-server/internal/config"
-	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/repository"
 	"perfect-pic-server/internal/testutils"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
+
+var testGormDB *gorm.DB
 
 // 测试内容：为 main 包测试初始化配置环境并在结束时清理。
 func TestMain(m *testing.M) {
@@ -257,6 +258,7 @@ func TestSetupStaticFiles_ServesUploadsAndAvatars(t *testing.T) {
 
 func setupTestDBForMain(t *testing.T) *gorm.DB {
 	gdb := testutils.SetupDB(t)
+	testGormDB = gdb
 	buildTestDBConfigForMain().ClearCache()
 	return gdb
 }
@@ -264,6 +266,6 @@ func setupTestDBForMain(t *testing.T) *gorm.DB {
 var _ fs.FS = fstest.MapFS{}
 
 func buildTestDBConfigForMain() *config.DBConfig {
-	settingStore := repository.NewSettingRepository(db.DB)
+	settingStore := repository.NewSettingRepository(testGormDB)
 	return config.NewDBConfig(settingStore)
 }

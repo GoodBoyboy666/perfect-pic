@@ -10,11 +10,15 @@ import (
 	"gorm.io/gorm"
 )
 
-var testService *config.DBConfig
+var (
+	testService *config.DBConfig
+	testGormDB  *gorm.DB
+)
 
 func setupTestDB(t *testing.T) *gorm.DB {
 	config.InitConfig("")
 	gdb := testutils.SetupDB(t)
+	testGormDB = gdb
 	settingStore := repository.NewSettingRepository(gdb)
 	testService = config.NewDBConfig(settingStore)
 	testService.ClearCache()

@@ -7,6 +7,7 @@ import (
 	"perfect-pic-server/internal/middleware"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 type Router struct {
@@ -16,6 +17,7 @@ type Router struct {
 	userHandler     *handler.UserHandler
 	imageHandler    *handler.ImageHandler
 	dbConfig        *config.DBConfig
+	gormDB          *gorm.DB
 }
 
 func NewRouter(
@@ -25,6 +27,7 @@ func NewRouter(
 	userHandler *handler.UserHandler,
 	imageHandler *handler.ImageHandler,
 	dbConfig *config.DBConfig,
+	gormDB *gorm.DB,
 ) *Router {
 	return &Router{
 		authHandler:     authHandler,
@@ -33,6 +36,7 @@ func NewRouter(
 		userHandler:     userHandler,
 		imageHandler:    imageHandler,
 		dbConfig:        dbConfig,
+		gormDB:          gormDB,
 	}
 }
 
@@ -48,6 +52,6 @@ func (rt *Router) Init(r *gin.Engine) {
 	registerPublicRoutes(api, rt.systemHandler)
 	registerSystemRoutes(api, authLimiter, rt.systemHandler, rt.dbConfig)
 	registerAuthRoutes(api, authLimiter, rt.authHandler, rt.dbConfig)
-	registerUserRoutes(api, rt.userHandler, rt.imageHandler, rt.dbConfig)
-	registerAdminRoutes(api, rt.systemHandler, rt.settingsHandler, rt.userHandler, rt.imageHandler, rt.dbConfig)
+	registerUserRoutes(api, rt.userHandler, rt.imageHandler, rt.dbConfig, rt.gormDB)
+	registerAdminRoutes(api, rt.systemHandler, rt.settingsHandler, rt.userHandler, rt.imageHandler, rt.dbConfig, rt.gormDB)
 }

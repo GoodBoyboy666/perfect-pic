@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"perfect-pic-server/internal/consts"
-	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/model"
 
 	"github.com/gin-gonic/gin"
@@ -18,7 +17,7 @@ func TestGetCaptcha_DisabledProvider(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	setupTestDB(t)
 
-	_ = db.DB.Save(&model.Setting{Key: consts.ConfigCaptchaProvider, Value: ""}).Error
+	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigCaptchaProvider, Value: ""}).Error
 	testService.ClearCache()
 
 	r := gin.New()
@@ -60,8 +59,8 @@ func TestGetCaptcha_ProvidersWithPublicConfig(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		_ = db.DB.Save(&model.Setting{Key: consts.ConfigCaptchaProvider, Value: tc.provider}).Error
-		_ = db.DB.Save(&model.Setting{Key: tc.key, Value: "pub"}).Error
+		_ = testGormDB.Save(&model.Setting{Key: consts.ConfigCaptchaProvider, Value: tc.provider}).Error
+		_ = testGormDB.Save(&model.Setting{Key: tc.key, Value: "pub"}).Error
 		testService.ClearCache()
 
 		w := httptest.NewRecorder()
@@ -77,7 +76,7 @@ func TestGetCaptchaImage_ImageProvider(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	setupTestDB(t)
 
-	_ = db.DB.Save(&model.Setting{Key: consts.ConfigCaptchaProvider, Value: "image"}).Error
+	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigCaptchaProvider, Value: "image"}).Error
 	testService.ClearCache()
 
 	r := gin.New()
@@ -106,7 +105,7 @@ func TestGetCaptchaImage_NonImageProviderReturns400(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	setupTestDB(t)
 
-	_ = db.DB.Save(&model.Setting{Key: consts.ConfigCaptchaProvider, Value: ""}).Error
+	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigCaptchaProvider, Value: ""}).Error
 	testService.ClearCache()
 
 	r := gin.New()

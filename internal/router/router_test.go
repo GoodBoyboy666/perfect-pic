@@ -52,7 +52,7 @@ func TestInitRouter_RegistersCoreRoutes(t *testing.T) {
 	settingsHandler := handler.NewSettingsHandler(settingsService, settingsUseCase)
 	userHandler := handler.NewUserHandler(userService, userUseCase, userManageUseCase, imageService, imageUseCase, authService, passkeyService, passkeyUseCase)
 	imageHandler := handler.NewImageHandler(imageService, imageUseCase)
-	rt := NewRouter(authHandler, systemHandler, settingsHandler, userHandler, imageHandler, dbConfig)
+	rt := NewRouter(authHandler, systemHandler, settingsHandler, userHandler, imageHandler, dbConfig, gdb)
 
 	r := gin.New()
 	rt.Init(r)
