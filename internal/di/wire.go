@@ -7,6 +7,7 @@ import (
 	"perfect-pic-server/internal/config"
 	"perfect-pic-server/internal/handler"
 	pkgcaptcha "perfect-pic-server/internal/pkg/captcha"
+	pkgmail "perfect-pic-server/internal/pkg/email"
 	"perfect-pic-server/internal/pkg/database"
 	"perfect-pic-server/internal/pkg/redis"
 	"perfect-pic-server/internal/repository"
@@ -34,6 +35,7 @@ func InitializeApplication() (*Application, error) {
 		service.NewAuthService,
 		service.NewEmailService,
 		pkgcaptcha.NewCaptcha,
+		pkgmail.NewMailer,
 		service.NewInitService,
 		service.NewPasskeyService,
 		admin.NewUserManageUseCase,

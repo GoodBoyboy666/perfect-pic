@@ -2,6 +2,7 @@ package service
 
 import (
 	"perfect-pic-server/internal/config"
+	"perfect-pic-server/internal/pkg/email"
 	repo "perfect-pic-server/internal/repository"
 	"sync"
 
@@ -30,6 +31,7 @@ type ImageService struct {
 
 type EmailService struct {
 	dbConfig *config.DBConfig
+	mailer   *email.Mailer
 }
 
 type InitService struct {
@@ -60,8 +62,8 @@ func NewImageService(imageStore repo.ImageStore, dbConfig *config.DBConfig) *Ima
 	return &ImageService{imageStore: imageStore, dbConfig: dbConfig}
 }
 
-func NewEmailService(dbConfig *config.DBConfig) *EmailService {
-	return &EmailService{dbConfig: dbConfig}
+func NewEmailService(dbConfig *config.DBConfig, mailer *email.Mailer) *EmailService {
+	return &EmailService{dbConfig: dbConfig, mailer: mailer}
 }
 
 func NewInitService(systemStore repo.SystemStore, dbConfig *config.DBConfig) *InitService {

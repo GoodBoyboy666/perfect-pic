@@ -61,8 +61,8 @@ func TestSendTestEmailHandler_InvalidEmail(t *testing.T) {
 	}
 }
 
-// 测试内容：验证 SMTP 主机缺失时发送测试邮件返回 500。
-func TestSendTestEmailHandler_SMTPMissingHostReturns500(t *testing.T) {
+// 测试内容：验证 SMTP 不可用（默认未开启）时发送测试邮件返回 500。
+func TestSendTestEmailHandler_SMTPUnavailableReturns500(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	setupTestDB(t)
 

@@ -12,7 +12,7 @@ func TestSettingsUseCase_AdminSendTestEmail_InvalidEmail(t *testing.T) {
 	assertServiceErrorCode(t, err, common.ErrorCodeValidation)
 }
 
-func TestSettingsUseCase_AdminSendTestEmail_MissingHostInternalError(t *testing.T) {
+func TestSettingsUseCase_AdminSendTestEmail_SMTPUnavailableInternalError(t *testing.T) {
 	f := setupAdminFixture(t)
 
 	err := f.settingsUC.AdminSendTestEmail("a@example.com")

@@ -4,6 +4,7 @@ import (
 	"os"
 	"perfect-pic-server/internal/common"
 	"perfect-pic-server/internal/config"
+	pkgmail "perfect-pic-server/internal/pkg/email"
 	"perfect-pic-server/internal/repository"
 	"perfect-pic-server/internal/service"
 	"perfect-pic-server/internal/testutils"
@@ -45,7 +46,7 @@ func setupAdminFixture(t *testing.T) *adminFixture {
 	userService := service.NewUserService(userStore, dbConfig, nil)
 	imageService := service.NewImageService(imageStore, dbConfig)
 	passkeyService := service.NewPasskeyService(passkeyStore, dbConfig, nil)
-	emailService := service.NewEmailService(dbConfig)
+	emailService := service.NewEmailService(dbConfig, pkgmail.NewMailer())
 	_ = service.NewInitService(systemStore, dbConfig)
 
 	return &adminFixture{

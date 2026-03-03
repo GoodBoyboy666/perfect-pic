@@ -2,17 +2,15 @@ package service
 
 import (
 	"bytes"
-	"crypto/tls"
 	"fmt"
 	"html/template"
-	"log"
 	"mime"
 	"net/mail"
-	"net/smtp"
 	"os"
 	"path/filepath"
 	"perfect-pic-server/internal/config"
 	"perfect-pic-server/internal/consts"
+	"perfect-pic-server/internal/pkg/email"
 	"regexp"
 	"strings"
 	"time"
@@ -57,15 +55,13 @@ func (s *EmailService) ShouldSendEmail() bool {
 func (s *EmailService) SendVerificationEmail(toEmail, username, verifyUrl string) error {
 	// 检查是否开启 SMTP
 	if !s.dbConfig.GetBool(consts.ConfigEnableSMTP) {
-		return nil
+		return fmt.Errorf("请先开启SMTP功能")
 	}
 
 	cfg := config.Get()
 	if cfg.SMTP.Host == "" {
-		return nil
+		return fmt.Errorf("请设置SMTP服务器地址")
 	}
-
-	auth := smtp.PlainAuth("", cfg.SMTP.Username, cfg.SMTP.Password, cfg.SMTP.Host)
 
 	siteName := s.dbConfig.GetString(consts.ConfigSiteName)
 	if siteName == "" {
@@ -100,39 +96,41 @@ func (s *EmailService) SendVerificationEmail(toEmail, username, verifyUrl string
 		return err
 	}
 
-	fromHeader, fromAddr, err := formatAddressHeader(cfg.SMTP.From)
+	_, fromAddr, err := formatAddressHeader(cfg.SMTP.From)
 	if err != nil {
 		return err
 	}
-	toHeader, toAddr, err := formatAddressHeader(toEmail)
-	if err != nil {
-		return err
-	}
-
-	msg, err := buildEmailMessage(fromHeader, toHeader, subject, body)
+	_, toAddr, err := formatAddressHeader(toEmail)
 	if err != nil {
 		return err
 	}
 
-	addr := fmt.Sprintf("%s:%d", cfg.SMTP.Host, cfg.SMTP.Port)
-
-	// 如果配置了 SSL (通常是端口 465)，需要使用 tls 连接
-	if cfg.SMTP.SSL {
-		return sendMailWithSSL(addr, auth, fromAddr, []string{toAddr}, msg)
+	smtpConfig := email.SMTPConfig{
+		Host:     cfg.SMTP.Host,
+		Port:     cfg.SMTP.Port,
+		Username: cfg.SMTP.Username,
+		Password: cfg.SMTP.Password,
+		SSL:      cfg.SMTP.SSL,
 	}
-
-	// 默认使用 STARTTLS (通常是端口 587 或 25)
-	return smtp.SendMail(addr, auth, fromAddr, []string{toAddr}, msg)
+	emailInfo := email.Email{
+		From:    fromAddr,
+		To:      []string{toAddr},
+		Subject: subject,
+		Body:    body,
+	}
+	return s.mailer.SendWithSMTP(smtpConfig, emailInfo)
 }
 
 // SendTestEmail 发送测试邮件
 func (s *EmailService) SendTestEmail(toEmail string) error {
-	cfg := config.Get()
-	if cfg.SMTP.Host == "" {
-		return fmt.Errorf("SMTP Host 未配置")
+	if !s.dbConfig.GetBool(consts.ConfigEnableSMTP) {
+		return fmt.Errorf("请先开启SMTP功能")
 	}
 
-	auth := smtp.PlainAuth("", cfg.SMTP.Username, cfg.SMTP.Password, cfg.SMTP.Host)
+	cfg := config.Get()
+	if cfg.SMTP.Host == "" {
+		return fmt.Errorf("请设置SMTP服务器地址")
+	}
 
 	siteName := s.dbConfig.GetString(consts.ConfigSiteName)
 	if siteName == "" {
@@ -161,42 +159,41 @@ func (s *EmailService) SendTestEmail(toEmail string) error {
 		return err
 	}
 
-	fromHeader, fromAddr, err := formatAddressHeader(cfg.SMTP.From)
+	_, fromAddr, err := formatAddressHeader(cfg.SMTP.From)
 	if err != nil {
 		return err
 	}
-	toHeader, toAddr, err := formatAddressHeader(toEmail)
-	if err != nil {
-		return err
-	}
-
-	msg, err := buildEmailMessage(fromHeader, toHeader, subject, body)
+	_, toAddr, err := formatAddressHeader(toEmail)
 	if err != nil {
 		return err
 	}
 
-	addr := fmt.Sprintf("%s:%d", cfg.SMTP.Host, cfg.SMTP.Port)
-
-	if cfg.SMTP.SSL {
-		return sendMailWithSSL(addr, auth, fromAddr, []string{toAddr}, msg)
+	smtpConfig := email.SMTPConfig{
+		Host:     cfg.SMTP.Host,
+		Port:     cfg.SMTP.Port,
+		Username: cfg.SMTP.Username,
+		Password: cfg.SMTP.Password,
+		SSL:      cfg.SMTP.SSL,
 	}
-
-	return smtp.SendMail(addr, auth, fromAddr, []string{toAddr}, msg)
+	emailInfo := email.Email{
+		From:    fromAddr,
+		To:      []string{toAddr},
+		Subject: subject,
+		Body:    body,
+	}
+	return s.mailer.SendWithSMTP(smtpConfig, emailInfo)
 }
 
 // SendEmailChangeVerification 发送修改邮箱验证邮件
 func (s *EmailService) SendEmailChangeVerification(toEmail, username, oldEmail, newEmail, verifyUrl string) error {
-	// 检查是否开启 SMTP
 	if !s.dbConfig.GetBool(consts.ConfigEnableSMTP) {
-		return nil
+		return fmt.Errorf("请先开启SMTP功能")
 	}
 
 	cfg := config.Get()
 	if cfg.SMTP.Host == "" {
-		return nil
+		return fmt.Errorf("请设置SMTP服务器地址")
 	}
-
-	auth := smtp.PlainAuth("", cfg.SMTP.Username, cfg.SMTP.Password, cfg.SMTP.Host)
 
 	siteName := s.dbConfig.GetString(consts.ConfigSiteName)
 	if siteName == "" {
@@ -233,42 +230,41 @@ func (s *EmailService) SendEmailChangeVerification(toEmail, username, oldEmail, 
 		return err
 	}
 
-	fromHeader, fromAddr, err := formatAddressHeader(cfg.SMTP.From)
+	_, fromAddr, err := formatAddressHeader(cfg.SMTP.From)
 	if err != nil {
 		return err
 	}
-	toHeader, toAddr, err := formatAddressHeader(toEmail)
-	if err != nil {
-		return err
-	}
-
-	msg, err := buildEmailMessage(fromHeader, toHeader, subject, body)
+	_, toAddr, err := formatAddressHeader(toEmail)
 	if err != nil {
 		return err
 	}
 
-	addr := fmt.Sprintf("%s:%d", cfg.SMTP.Host, cfg.SMTP.Port)
-
-	if cfg.SMTP.SSL {
-		return sendMailWithSSL(addr, auth, fromAddr, []string{toAddr}, msg)
+	smtpConfig := email.SMTPConfig{
+		Host:     cfg.SMTP.Host,
+		Port:     cfg.SMTP.Port,
+		Username: cfg.SMTP.Username,
+		Password: cfg.SMTP.Password,
+		SSL:      cfg.SMTP.SSL,
 	}
-
-	return smtp.SendMail(addr, auth, fromAddr, []string{toAddr}, msg)
+	emailInfo := email.Email{
+		From:    fromAddr,
+		To:      []string{toAddr},
+		Subject: subject,
+		Body:    body,
+	}
+	return s.mailer.SendWithSMTP(smtpConfig, emailInfo)
 }
 
 // SendPasswordResetEmail 发送重置密码邮件
 func (s *EmailService) SendPasswordResetEmail(toEmail, username, resetUrl string) error {
-	// 检查是否开启 SMTP
 	if !s.dbConfig.GetBool(consts.ConfigEnableSMTP) {
-		return nil
+		return fmt.Errorf("请先开启SMTP功能")
 	}
 
 	cfg := config.Get()
 	if cfg.SMTP.Host == "" {
-		return nil
+		return fmt.Errorf("请设置SMTP服务器地址")
 	}
-
-	auth := smtp.PlainAuth("", cfg.SMTP.Username, cfg.SMTP.Password, cfg.SMTP.Host)
 
 	siteName := s.dbConfig.GetString(consts.ConfigSiteName)
 	if siteName == "" {
@@ -303,137 +299,30 @@ func (s *EmailService) SendPasswordResetEmail(toEmail, username, resetUrl string
 		return err
 	}
 
-	fromHeader, fromAddr, err := formatAddressHeader(cfg.SMTP.From)
+	_, fromAddr, err := formatAddressHeader(cfg.SMTP.From)
 	if err != nil {
 		return err
 	}
-	toHeader, toAddr, err := formatAddressHeader(toEmail)
-	if err != nil {
-		return err
-	}
-
-	msg, err := buildEmailMessage(fromHeader, toHeader, subject, body)
+	_, toAddr, err := formatAddressHeader(toEmail)
 	if err != nil {
 		return err
 	}
 
-	addr := fmt.Sprintf("%s:%d", cfg.SMTP.Host, cfg.SMTP.Port)
-
-	if cfg.SMTP.SSL {
-		return sendMailWithSSL(addr, auth, fromAddr, []string{toAddr}, msg)
+	smtpConfig := email.SMTPConfig{
+		Host:     cfg.SMTP.Host,
+		Port:     cfg.SMTP.Port,
+		Username: cfg.SMTP.Username,
+		Password: cfg.SMTP.Password,
+		SSL:      cfg.SMTP.SSL,
 	}
-
-	return smtp.SendMail(addr, auth, fromAddr, []string{toAddr}, msg)
+	emailInfo := email.Email{
+		From:    fromAddr,
+		To:      []string{toAddr},
+		Subject: subject,
+		Body:    body,
+	}
+	return s.mailer.SendWithSMTP(smtpConfig, emailInfo)
 }
-
-// sendMailWithSSL 使用 TLS 直连方式发送邮件（常用于 465 端口）。
-func sendMailWithSSL(addr string, auth smtp.Auth, from string, to []string, msg []byte) error {
-	cfg := config.Get()
-	// log.Printf("[Email] 正在使用 SSL 连接至 %s 发送邮件", addr)
-
-	// 建立 TLS 连接
-	tlsConfig := &tls.Config{
-		InsecureSkipVerify: false,
-		ServerName:         cfg.SMTP.Host,
-	}
-
-	// 增加超时控制
-	conn, err := tls.Dial("tcp", addr, tlsConfig)
-	if err != nil {
-		log.Printf("[Email] TLS 连接失败: %v", err)
-		return err
-	}
-	defer func() { _ = conn.Close() }()
-
-	client, err := smtp.NewClient(conn, cfg.SMTP.Host)
-	if err != nil {
-		log.Printf("[Email] 创建 SMTP 客户端失败: %v", err)
-		return err
-	}
-	defer func() { _ = client.Close() }()
-
-	// 认证
-	if auth != nil {
-		if ok, _ := client.Extension("AUTH"); ok {
-			if err = client.Auth(auth); err != nil {
-				log.Printf("[Email] SMTP认证失败: %v", err)
-				return err
-			}
-		}
-	}
-
-	// 发送流程
-	if err = client.Mail(from); err != nil {
-		log.Printf("[Email] MAIL FROM 命令失败: %v", err)
-		return err
-	}
-	for _, addr := range to {
-		if err = client.Rcpt(addr); err != nil {
-			// 不记录具体邮箱地址，防止日志泄露敏感信息
-			log.Printf("[Email] RCPT TO 命令失败: %v", err)
-			return err
-		}
-	}
-	w, err := client.Data()
-	if err != nil {
-		log.Printf("[Email] DATA 命令失败: %v", err)
-		return err
-	}
-	_, err = w.Write(msg)
-	if err != nil {
-		log.Printf("[Email] 写入邮件内容失败: %v", err)
-		return err
-	}
-	err = w.Close()
-	if err != nil {
-		log.Printf("[Email] 关闭 DATA 失败: %v", err)
-		return err
-	}
-
-	// log.Printf("[Email] 邮件投递成功")
-	return client.Quit()
-}
-
-//func parseAddressForHeader(input string) (string, string, error) {
-//	cleanInput := sanitizeHeaderContent(input)
-//
-//	addr, err := mail.ParseAddress(cleanInput)
-//	if err != nil {
-//		return "", "", err
-//	}
-//
-//	headerValue := addr.String()
-//	cleanHeaderValue := sanitizeHeaderContent(headerValue)
-//
-//	return cleanHeaderValue, addr.Address, nil
-//}
-
-func buildEmailMessage(fromHeader, toHeader, subject, body string) ([]byte, error) {
-	// 对 Subject 进行 MIME 编码，防止中文乱码或被拒收
-	encodedSubject := mime.BEncoding.Encode("UTF-8", subject)
-	// 添加 Date 头
-	dateStr := time.Now().Format(time.RFC1123Z)
-
-	header := fmt.Sprintf("Date: %s\r\nFrom: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n",
-		dateStr, fromHeader, toHeader, encodedSubject)
-	return []byte(header + body), nil
-}
-
-//func rejectCRLF(value string, field string) error {
-//	if strings.ContainsAny(value, "\r\n") {
-//		return fmt.Errorf("invalid %s header: CRLF not allowed", field)
-//	}
-//	return nil
-//}
-
-//func sanitizeHeaderContent(input string) string {
-//	return strings.Map(func(r rune) rune {
-//		if r == '\r' || r == '\n' {
-//			return -1 // 丢弃字符
-//		}
-//		return r
-//	}, input)
-//}
 
 func renderTemplate(tpl string, data interface{}) (string, error) {
 	t, err := template.New("email").Parse(tpl)

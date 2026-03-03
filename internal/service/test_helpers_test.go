@@ -10,6 +10,7 @@ import (
 	moduledto "perfect-pic-server/internal/dto"
 	"perfect-pic-server/internal/model"
 	pkgcaptcha "perfect-pic-server/internal/pkg/captcha"
+	pkgmail "perfect-pic-server/internal/pkg/email"
 	"perfect-pic-server/internal/repository"
 	"perfect-pic-server/internal/testutils"
 
@@ -49,7 +50,7 @@ func setupTestDB(t *testing.T) *gorm.DB {
 	authService := NewAuthService(dbConfig)
 	userService := NewUserService(userStore, dbConfig, nil)
 	imageService := NewImageService(imageStore, dbConfig)
-	emailService := NewEmailService(dbConfig)
+	emailService := NewEmailService(dbConfig, pkgmail.NewMailer())
 	captchaService := pkgcaptcha.NewCaptcha(dbConfig)
 	initService := NewInitService(systemStore, dbConfig)
 	passkeyService := NewPasskeyService(passkeyStore, dbConfig, nil)

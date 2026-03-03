@@ -11,6 +11,7 @@ import (
 	"perfect-pic-server/internal/handler"
 	"perfect-pic-server/internal/pkg/captcha"
 	"perfect-pic-server/internal/pkg/database"
+	"perfect-pic-server/internal/pkg/email"
 	"perfect-pic-server/internal/pkg/redis"
 	"perfect-pic-server/internal/repository"
 	"perfect-pic-server/internal/router"
@@ -33,7 +34,8 @@ func InitializeApplication() (*Application, error) {
 	userStore := repository.NewUserRepository(db)
 	client := redis.NewRedisClient()
 	userService := service.NewUserService(userStore, dbConfig, client)
-	emailService := service.NewEmailService(dbConfig)
+	mailer := email.NewMailer()
+	emailService := service.NewEmailService(dbConfig, mailer)
 	systemStore := repository.NewSystemRepository(db)
 	initService := service.NewInitService(systemStore, dbConfig)
 	authUseCase := app.NewAuthUseCase(authService, userStore, userService, emailService, initService, dbConfig)
