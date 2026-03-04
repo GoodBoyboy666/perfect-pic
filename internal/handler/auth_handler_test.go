@@ -7,7 +7,6 @@ import (
 	"net/http/httptest"
 	"perfect-pic-server/internal/pkg/jwt"
 	"testing"
-	"time"
 
 	"perfect-pic-server/internal/consts"
 	"perfect-pic-server/internal/model"
@@ -103,9 +102,9 @@ func TestEmailVerifyHandler_OK(t *testing.T) {
 	u := model.User{Username: "alice", Password: string(hashed), Status: 1, Email: "a@example.com", EmailVerified: false}
 	_ = testGormDB.Create(&u).Error
 
-	token, err := jwt.GenerateEmailToken(u.ID, u.Email, time.Hour)
+	token, err := testUserSvc.GenerateEmailVerificationToken(u.ID, u.Email)
 	if err != nil {
-		t.Fatalf("GenerateEmailToken: %v", err)
+		t.Fatalf("GenerateEmailVerificationToken: %v", err)
 	}
 
 	r := gin.New()

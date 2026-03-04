@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	commonpkg "perfect-pic-server/internal/common"
-	"perfect-pic-server/internal/config"
 	"perfect-pic-server/internal/model"
 	"perfect-pic-server/internal/pkg/pathpkg"
 	"strings"
@@ -53,7 +52,7 @@ func (c *ImageUseCase) ProcessImageUpload(file *multipart.FileHeader, uid uint) 
 	now := time.Now()
 	datePath := filepath.Join(now.Format("2006"), now.Format("01"), now.Format("02"))
 
-	cfg := config.Get()
+	cfg := c.staticConfig
 	uploadRoot := cfg.Upload.Path
 	if uploadRoot == "" {
 		uploadRoot = "uploads/imgs"
@@ -134,7 +133,7 @@ func (c *ImageUseCase) ProcessImageUpload(file *multipart.FileHeader, uid uint) 
 
 // UpdateUserAvatar 更新用户头像
 func (c *ImageUseCase) UpdateUserAvatar(user *model.User, file *multipart.FileHeader) (string, error) {
-	cfg := config.Get()
+	cfg := c.staticConfig
 	avatarRoot := cfg.Upload.AvatarPath
 	if avatarRoot == "" {
 		avatarRoot = "uploads/avatars"
@@ -229,7 +228,7 @@ func (c *ImageUseCase) RemoveUserAvatar(user *model.User) error {
 		return nil
 	}
 
-	cfg := config.Get()
+	cfg := c.staticConfig
 	avatarRoot := cfg.Upload.AvatarPath
 	if avatarRoot == "" {
 		avatarRoot = "uploads/avatars"

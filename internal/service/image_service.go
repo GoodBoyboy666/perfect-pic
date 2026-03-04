@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	commonpkg "perfect-pic-server/internal/common"
-	"perfect-pic-server/internal/config"
 	"perfect-pic-server/internal/consts"
 	moduledto "perfect-pic-server/internal/dto"
 	"perfect-pic-server/internal/model"
@@ -65,7 +64,7 @@ func (s *ImageService) ValidateImageFile(file *multipart.FileHeader) (bool, stri
 
 // DeleteImage 删除图片文件和数据库记录
 func (s *ImageService) DeleteImage(image *model.Image) error {
-	cfg := config.Get()
+	cfg := s.staticConfig
 	uploadRoot := cfg.Upload.Path
 	if uploadRoot == "" {
 		uploadRoot = "uploads/imgs"
@@ -114,8 +113,7 @@ func (s *ImageService) BatchDeleteImages(images []model.Image) error {
 	var imageIDs []uint
 	var pathsToDelete []string
 
-	cfg := config.Get()
-	uploadRoot := cfg.Upload.Path
+	uploadRoot := s.staticConfig.Upload.Path
 	if uploadRoot == "" {
 		uploadRoot = "uploads/imgs"
 	}
@@ -210,11 +208,10 @@ func (s *ImageService) GetImagesByIDsForUser(ids []uint, userID uint) ([]model.I
 //
 //nolint:gocyclo
 func (s *ImageService) DeleteUserFiles(userID uint) error {
-	cfg := config.Get()
 
 	// 1. 删除头像目录
 	// 头像存储结构: data/avatars/{userID}/filename
-	avatarRoot := cfg.Upload.AvatarPath
+	avatarRoot := s.staticConfig.Upload.AvatarPath
 	if avatarRoot == "" {
 		avatarRoot = "uploads/avatars"
 	}
@@ -249,7 +246,7 @@ func (s *ImageService) DeleteUserFiles(userID uint) error {
 		return fmt.Errorf("failed to retrieve user images: %w", err)
 	}
 
-	uploadRoot := cfg.Upload.Path
+	uploadRoot := s.staticConfig.Upload.Path
 	if uploadRoot == "" {
 		uploadRoot = "uploads/imgs"
 	}

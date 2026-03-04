@@ -193,8 +193,7 @@ func TestEmailChangeToken_ExpiredRejected(t *testing.T) {
 		NewEmail:  "new@example.com",
 		ExpiresAt: time.Now().Add(-time.Minute),
 	}
-	testService.userService.emailChangeStore.Store(uint(1001), expiredToken)
-	testService.userService.emailChangeTokenStore.Store(expiredToken, expired)
+	testService.userService.putEmailChangeTokenLocalForTest(expired)
 
 	item, ok := testService.VerifyEmailChangeToken(expiredToken)
 	if ok || item != nil {

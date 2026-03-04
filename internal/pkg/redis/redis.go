@@ -3,40 +3,24 @@ package redis
 import (
 	"context"
 	"log"
-	"perfect-pic-server/internal/config"
 	"time"
 
 	"github.com/redis/go-redis/v9"
 )
 
-// RedisKey 基于配置前缀拼接 Redis 键名。
-func RedisKey(parts ...string) string {
-	cfg := config.Get()
-	prefix := cfg.Redis.Prefix
-	if prefix == "" {
-		prefix = "perfect_pic"
-	}
-	if len(parts) == 0 {
-		return prefix
-	}
-	key := prefix
-	for _, p := range parts {
-		key += ":" + p
-	}
-	return key
+type Config struct {
+	Addr     string
+	Password string
+	DB       int
 }
 
 // NewRedisClient 初始化 Redis 客户端；当未启用或不可用时返回 nil。
-func NewRedisClient() *redis.Client {
-	cfg := config.Get()
-	if !cfg.Redis.Enabled {
-		return nil
-	}
+func NewRedisClient(cfg *Config) *redis.Client {
 
 	client := redis.NewClient(&redis.Options{
-		Addr:     cfg.Redis.Addr,
-		Password: cfg.Redis.Password,
-		DB:       cfg.Redis.DB,
+		Addr:     cfg.Addr,
+		Password: cfg.Password,
+		DB:       cfg.DB,
 	})
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -48,6 +32,6 @@ func NewRedisClient() *redis.Client {
 		return nil
 	}
 
-	log.Printf("✅ Redis 已连接: %s (db=%d)", cfg.Redis.Addr, cfg.Redis.DB)
+	log.Printf("✅ Redis 已连接: %s (db=%d)", cfg.Addr, cfg.DB)
 	return client
 }

@@ -3,13 +3,14 @@ package jwt
 import (
 	"errors"
 	"fmt"
-	"perfect-pic-server/internal/config"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 )
 
-//var jwtSecret = []byte(config.Get().JWT.Secret)
+type JWT struct {
+	config *Config
+}
 
 // LoginClaims 用于登录认证（单管理员模式）
 type LoginClaims struct {
@@ -28,45 +29,50 @@ type EmailClaims struct {
 	jwt.RegisteredClaims
 }
 
-func getSecret() []byte {
-	return []byte(config.Get().JWT.Secret)
+type Config struct {
+	JWTSecret []byte
+	Duration  time.Duration
 }
 
-func GenerateLoginToken(id uint, username string, admin bool, duration time.Duration) (string, error) {
+func NewJWT(config *Config) *JWT {
+	return &JWT{config: config}
+}
+
+func (s *JWT) GenerateLoginToken(id uint, username string, admin bool) (string, error) {
 	claims := LoginClaims{
 		ID:       id,
 		Username: username,
 		Admin:    admin,
 		Type:     "login",
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(duration)),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(s.config.Duration)),
 			Issuer:    "perfect-pic-server",
 		},
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString(getSecret())
+	return token.SignedString(s.config.JWTSecret)
 }
 
-func GenerateEmailToken(id uint, email string, duration time.Duration) (string, error) {
+func (s *JWT) GenerateEmailToken(id uint, email string) (string, error) {
 	claims := EmailClaims{
 		ID:    id,
 		Email: email,
 		Type:  "email_verify",
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(duration)),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(s.config.Duration)),
 			Issuer:    "perfect-pic-server",
 		},
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString(getSecret())
+	return token.SignedString(s.config.JWTSecret)
 }
 
-func ParseLoginToken(tokenString string) (*LoginClaims, error) {
+func (s *JWT) ParseLoginToken(tokenString string) (*LoginClaims, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &LoginClaims{}, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
-		return getSecret(), nil
+		return s.config.JWTSecret, nil
 	})
 
 	if err != nil {
@@ -83,12 +89,12 @@ func ParseLoginToken(tokenString string) (*LoginClaims, error) {
 	return nil, errors.New("invalid token")
 }
 
-func ParseEmailToken(tokenString string) (*EmailClaims, error) {
+func (s *JWT) ParseEmailToken(tokenString string) (*EmailClaims, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &EmailClaims{}, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
-		return getSecret(), nil
+		return s.config.JWTSecret, nil
 	})
 
 	if err != nil {

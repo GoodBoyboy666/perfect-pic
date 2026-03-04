@@ -6,7 +6,6 @@ import (
 	"perfect-pic-server/internal/model"
 	"perfect-pic-server/internal/pkg/jwt"
 	"testing"
-	"time"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -72,9 +71,9 @@ func TestAuthUseCase_VerifyEmail_SetsVerifiedAndAlreadyVerified(t *testing.T) {
 		t.Fatalf("create user failed: %v", err)
 	}
 
-	token, err := jwt.GenerateEmailToken(u.ID, u.Email, time.Hour)
+	token, err := f.userService.GenerateEmailVerificationToken(u.ID, u.Email)
 	if err != nil {
-		t.Fatalf("GenerateEmailToken failed: %v", err)
+		t.Fatalf("GenerateEmailVerificationToken failed: %v", err)
 	}
 
 	already, err := f.authUC.VerifyEmail(token)
@@ -93,13 +92,8 @@ func TestAuthUseCase_VerifyEmail_SetsVerifiedAndAlreadyVerified(t *testing.T) {
 		t.Fatalf("expected user email verified")
 	}
 
-	already2, err := f.authUC.VerifyEmail(token)
-	if err != nil {
-		t.Fatalf("VerifyEmail second call failed: %v", err)
-	}
-	if !already2 {
-		t.Fatalf("expected already=true on second verify")
-	}
+	_, err = f.authUC.VerifyEmail(token)
+	assertAuthErrorCode(t, err, httpx.AuthErrorValidation)
 }
 
 func TestAuthUseCase_LoginUser_Success(t *testing.T) {
@@ -330,9 +324,9 @@ func TestAuthUseCase_VerifyEmail_EmailMismatchValidation(t *testing.T) {
 		t.Fatalf("create user failed: %v", err)
 	}
 
-	token, err := jwt.GenerateEmailToken(u.ID, "other@example.com", time.Hour)
+	token, err := f.userService.GenerateEmailVerificationToken(u.ID, "other@example.com")
 	if err != nil {
-		t.Fatalf("GenerateEmailToken failed: %v", err)
+		t.Fatalf("GenerateEmailVerificationToken failed: %v", err)
 	}
 	_, err = f.authUC.VerifyEmail(token)
 	assertAuthErrorCode(t, err, httpx.AuthErrorValidation)

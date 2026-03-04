@@ -1,14 +1,11 @@
 package service
 
 import (
-	"context"
-	"errors"
 	commonpkg "perfect-pic-server/internal/common"
 	moduledto "perfect-pic-server/internal/dto"
 	"perfect-pic-server/internal/model"
 	"perfect-pic-server/internal/pkg/validator"
 
-	"github.com/redis/go-redis/v9"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -201,59 +198,4 @@ func (s *UserService) prepareAdminStatusUpdate(status *int, updates map[string]i
 		return nil
 	}
 	return commonpkg.NewValidationError("无效的用户状态")
-}
-
-// verifyAndConsumeRedisTokenPair 使用 Redis WATCH/CAS 原子校验并消费 token 对。
-func verifyAndConsumeRedisTokenPair(
-	ctx context.Context,
-	redisClient *redis.Client,
-	tokenKey string,
-	userKey string,
-	expectedUserToken string,
-	expectedTokenValue string,
-) error {
-	var consumed bool
-	watchErr := redisClient.Watch(ctx, func(tx *redis.Tx) error {
-		currentUserToken, getErr := tx.Get(ctx, userKey).Result()
-		if getErr != nil {
-			if errors.Is(getErr, redis.Nil) {
-				return redis.TxFailedErr
-			}
-			return getErr
-		}
-		if currentUserToken != expectedUserToken {
-			return redis.TxFailedErr
-		}
-
-		currentTokenValue, tokenErr := tx.Get(ctx, tokenKey).Result()
-		if tokenErr != nil {
-			if errors.Is(tokenErr, redis.Nil) {
-				return redis.TxFailedErr
-			}
-			return tokenErr
-		}
-		if currentTokenValue != expectedTokenValue {
-			return redis.TxFailedErr
-		}
-
-		_, pipeErr := tx.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
-			pipe.Del(ctx, tokenKey)
-			pipe.Del(ctx, userKey)
-			return nil
-		})
-		if pipeErr != nil {
-			return pipeErr
-		}
-
-		consumed = true
-		return nil
-	}, userKey, tokenKey)
-
-	if watchErr == nil && consumed {
-		return nil
-	}
-	if errors.Is(watchErr, redis.TxFailedErr) || (!consumed && watchErr == nil) {
-		return errRedisTokenCASMismatch
-	}
-	return watchErr
 }

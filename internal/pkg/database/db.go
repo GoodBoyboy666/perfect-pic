@@ -5,7 +5,6 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"perfect-pic-server/internal/config"
 	"perfect-pic-server/internal/model"
 	"time"
 
@@ -15,35 +14,45 @@ import (
 	"gorm.io/gorm"
 )
 
+type DbConnectionConfig struct {
+	Type     string
+	Filename string
+	Host     string
+	Port     string
+	User     string
+	Password string
+	Name     string
+	SSL      bool
+}
+
 //nolint:gocyclo
-func NewGormDB() (*gorm.DB, error) {
-	cfg := config.Get()
+func NewGormDB(cfg *DbConnectionConfig) (*gorm.DB, error) {
 	var dialector gorm.Dialector
 
-	switch cfg.Database.Type {
+	switch cfg.Type {
 	case "mysql":
 		dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local",
-			cfg.Database.User,
-			cfg.Database.Password,
-			cfg.Database.Host,
-			cfg.Database.Port,
-			cfg.Database.Name,
+			cfg.User,
+			cfg.Password,
+			cfg.Host,
+			cfg.Port,
+			cfg.Name,
 		)
-		if cfg.Database.SSL {
+		if cfg.SSL {
 			dsn += "&tls=true"
 		}
 		dialector = mysql.Open(dsn)
 	case "postgres":
 		sslMode := "disable"
-		if cfg.Database.SSL {
+		if cfg.SSL {
 			sslMode = "require"
 		}
 		dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s TimeZone=Asia/Shanghai",
-			cfg.Database.Host,
-			cfg.Database.User,
-			cfg.Database.Password,
-			cfg.Database.Name,
-			cfg.Database.Port,
+			cfg.Host,
+			cfg.User,
+			cfg.Password,
+			cfg.Name,
+			cfg.Port,
 			sslMode,
 		)
 		dialector = postgres.Open(dsn)
@@ -51,13 +60,13 @@ func NewGormDB() (*gorm.DB, error) {
 		fallthrough
 	default:
 		// 自动创建数据库目录
-		dbDir := filepath.Dir(cfg.Database.Filename)
+		dbDir := filepath.Dir(cfg.Filename)
 		if err := os.MkdirAll(dbDir, 0755); err != nil {
 			return nil, fmt.Errorf("无法创建数据库目录 '%s': %w", dbDir, err)
 		}
 
 		// 启用 WAL 模式和繁忙等待，提升 SQLite 并发性能
-		dsn := cfg.Database.Filename + "?_foreign_keys=on&_journal_mode=WAL&_busy_timeout=5000"
+		dsn := cfg.Filename + "?_foreign_keys=on&_journal_mode=WAL&_busy_timeout=5000"
 		dialector = sqlite.Open(dsn)
 	}
 
@@ -68,7 +77,7 @@ func NewGormDB() (*gorm.DB, error) {
 
 	// SQLite 的外键约束默认是关闭的（且是“按连接”生效）。
 	// 这里显式开启，避免 DSN 参数在不同 driver/场景下未生效导致级联删除不工作。
-	if cfg.Database.Type == "sqlite" {
+	if cfg.Type == "sqlite" {
 		if err := gormDB.Exec("PRAGMA foreign_keys = ON").Error; err != nil {
 			return nil, fmt.Errorf("无法启用 SQLite 外键约束(PRAGMA foreign_keys=ON): %w", err)
 		}
@@ -81,7 +90,7 @@ func NewGormDB() (*gorm.DB, error) {
 	}
 
 	// 配置连接池
-	if cfg.Database.Type == "sqlite" {
+	if cfg.Type == "sqlite" {
 		// SQLite 建议单连接写
 		sqlDB.SetMaxOpenConns(1)
 		sqlDB.SetMaxIdleConns(1)
@@ -103,7 +112,7 @@ func NewGormDB() (*gorm.DB, error) {
 		return nil, fmt.Errorf("数据库迁移失败: %w", err)
 	}
 
-	if cfg.Database.Type == "sqlite" {
+	if cfg.Type == "sqlite" {
 		// 仅提示：如果数据库是旧版本、images 表曾在没有外键约束的情况下创建，
 		// SQLite 的 ALTER TABLE 能力有限，AutoMigrate 可能无法补上外键与 ON DELETE CASCADE。
 		type fkRow struct {
@@ -127,6 +136,6 @@ func NewGormDB() (*gorm.DB, error) {
 		}
 	}
 
-	log.Printf("✅ 数据库(%s)连接成功，表结构已同步", cfg.Database.Type)
+	log.Printf("✅ 数据库(%s)连接成功，表结构已同步", cfg.Type)
 	return gormDB, nil
 }

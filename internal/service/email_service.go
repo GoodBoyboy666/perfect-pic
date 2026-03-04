@@ -47,7 +47,7 @@ func (s *EmailService) ShouldSendEmail() bool {
 	if !s.dbConfig.GetBool(consts.ConfigEnableSMTP) {
 		return false
 	}
-	cfg := config.Get()
+	cfg := s.staticConfig
 	return strings.TrimSpace(cfg.SMTP.Host) != ""
 }
 
@@ -58,7 +58,7 @@ func (s *EmailService) SendVerificationEmail(toEmail, username, verifyUrl string
 		return fmt.Errorf("请先开启SMTP功能")
 	}
 
-	cfg := config.Get()
+	cfg := s.staticConfig
 	if cfg.SMTP.Host == "" {
 		return fmt.Errorf("请设置SMTP服务器地址")
 	}
@@ -127,7 +127,7 @@ func (s *EmailService) SendTestEmail(toEmail string) error {
 		return fmt.Errorf("请先开启SMTP功能")
 	}
 
-	cfg := config.Get()
+	cfg := s.staticConfig
 	if cfg.SMTP.Host == "" {
 		return fmt.Errorf("请设置SMTP服务器地址")
 	}
@@ -190,7 +190,7 @@ func (s *EmailService) SendEmailChangeVerification(toEmail, username, oldEmail, 
 		return fmt.Errorf("请先开启SMTP功能")
 	}
 
-	cfg := config.Get()
+	cfg := s.staticConfig
 	if cfg.SMTP.Host == "" {
 		return fmt.Errorf("请设置SMTP服务器地址")
 	}
@@ -261,7 +261,7 @@ func (s *EmailService) SendPasswordResetEmail(toEmail, username, resetUrl string
 		return fmt.Errorf("请先开启SMTP功能")
 	}
 
-	cfg := config.Get()
+	cfg := s.staticConfig
 	if cfg.SMTP.Host == "" {
 		return fmt.Errorf("请设置SMTP服务器地址")
 	}

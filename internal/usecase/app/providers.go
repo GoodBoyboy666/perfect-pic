@@ -22,11 +22,13 @@ type UserUseCase struct {
 	dbConfig     *config.DBConfig
 }
 
+type AvatarPath string
 type ImageUseCase struct {
 	imageService *service.ImageService
 	userService  *service.UserService
 	userStore    repository.UserStore
 	dbConfig     *config.DBConfig
+	staticConfig *config.Config
 }
 
 type PasskeyUseCase struct {
@@ -72,12 +74,14 @@ func NewImageUseCase(
 	imageService *service.ImageService,
 	userService *service.UserService,
 	userStore repository.UserStore,
+	staticConfig *config.Config,
 	dbConfig *config.DBConfig,
 ) *ImageUseCase {
 	return &ImageUseCase{
 		imageService: imageService,
 		userService:  userService,
 		userStore:    userStore,
+		staticConfig:   staticConfig,
 		dbConfig:     dbConfig,
 	}
 }

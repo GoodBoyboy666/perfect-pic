@@ -2,21 +2,17 @@ package service
 
 import (
 	"bytes"
-	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"log"
 	"math"
 	"net/http"
 	"net/url"
 	commonpkg "perfect-pic-server/internal/common"
 	"perfect-pic-server/internal/consts"
-	redis2 "perfect-pic-server/internal/pkg/redis"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -24,7 +20,6 @@ import (
 	"github.com/go-webauthn/webauthn/protocol/webauthncbor"
 	"github.com/go-webauthn/webauthn/protocol/webauthncose"
 	"github.com/go-webauthn/webauthn/webauthn"
-	"github.com/redis/go-redis/v9"
 )
 
 type passkeySessionEntry struct {
@@ -42,8 +37,6 @@ type passkeyStoredCredential struct {
 	Flags           webauthn.CredentialFlags          `json:"flags"`
 	Authenticator   webauthn.Authenticator            `json:"authenticator"`
 }
-
-var passkeySessionStore sync.Map
 
 var passkeyAllowedCOSEAlgorithms = map[webauthncose.COSEAlgorithmIdentifier]struct{}{
 	webauthncose.AlgEdDSA: {},
@@ -118,49 +111,17 @@ func (s *PasskeyService) StorePasskeySession(sessionType consts.PasskeySessionTy
 		SessionData:        *session,
 		ExpiresAt:          expireAt,
 	}
-
-	// Redis 可用时优先写入 Redis，支持多实例共享会话。
-	if storePasskeySessionInRedis(s.redisDB, sessionID, entry) {
-		return sessionID, nil
-	}
-
-	// Redis 不可用或写入失败时回退本地内存。
-	storePasskeySessionInMemory(sessionID, entry)
-	return sessionID, nil
-}
-
-func storePasskeySessionInRedis(redisClient *redis.Client, sessionID string, entry passkeySessionEntry) bool {
-	if redisClient == nil {
-		return false
-	}
-
 	payload, err := json.Marshal(entry)
 	if err != nil {
-		log.Printf("⚠️ Redis 写入 Passkey 会话失败，序列化异常，回退内存会话: %v", err)
-		return false
+		return "", err
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-
-	key := redis2.RedisKey("passkey", "session", sessionID)
-	if err := redisClient.Set(ctx, key, payload, consts.PasskeySessionTTL).Err(); err != nil {
-		log.Printf("⚠️ Redis 写入 Passkey 会话失败，回退内存会话: %v", err)
-		return false
-	}
-
-	return true
-}
-
-func storePasskeySessionInMemory(sessionID string, entry passkeySessionEntry) {
-	// 每次写入前顺带清理过期会话，控制内存占用。
-	cleanupExpiredPasskeySessions()
-	passkeySessionStore.Store(sessionID, entry)
+	s.passkeySessionCache.Set(s.passkeySessionCache.RedisKey("passkey", "session", sessionID), string(payload), consts.PasskeySessionTTL)
+	return sessionID, nil
 }
 
 // ConsumePasskeyLoginSession 读取并消费登录会话，仅返回 WebAuthn 校验所需的 SessionData。
 func (s *PasskeyService) ConsumePasskeyLoginSession(sessionID string) (*webauthn.SessionData, error) {
-	entry, err := consumePasskeySessionEntry(s.redisDB, sessionID, consts.PasskeySessionLogin)
+	entry, err := s.consumePasskeySessionEntry(sessionID, consts.PasskeySessionLogin)
 	if err != nil {
 		return nil, err
 	}
@@ -169,7 +130,7 @@ func (s *PasskeyService) ConsumePasskeyLoginSession(sessionID string) (*webauthn
 
 // ConsumePasskeyRegistrationSession 读取并消费注册会话，并校验会话归属用户。
 func (s *PasskeyService) ConsumePasskeyRegistrationSession(sessionID string, userID uint) (*webauthn.SessionData, error) {
-	entry, err := consumePasskeySessionEntry(s.redisDB, sessionID, consts.PasskeySessionRegistration)
+	entry, err := s.consumePasskeySessionEntry(sessionID, consts.PasskeySessionRegistration)
 	if err != nil {
 		return nil, err
 	}
@@ -181,21 +142,18 @@ func (s *PasskeyService) ConsumePasskeyRegistrationSession(sessionID string, use
 }
 
 // consumePasskeySessionEntry 读取并消费底层会话条目，负责类型与过期校验。
-func consumePasskeySessionEntry(redisClient *redis.Client, sessionID string, expectedType consts.PasskeySessionType) (*passkeySessionEntry, error) {
+func (s *PasskeyService) consumePasskeySessionEntry(sessionID string, expectedType consts.PasskeySessionType) (*passkeySessionEntry, error) {
 	if strings.TrimSpace(sessionID) == "" {
 		return nil, commonpkg.NewValidationError("session_id 不能为空")
 	}
-
-	// Redis 可用时优先从 Redis 原子读取并删除；未命中再回退本地内存。
-	entry, err := consumePasskeySessionEntryFromRedis(redisClient, sessionID)
-	if err != nil {
-		return nil, err
+	raw, ok := s.passkeySessionCache.GetAndDelete(s.passkeySessionCache.RedisKey("passkey", "session", sessionID))
+	if !ok {
+		return nil, commonpkg.NewValidationError("Passkey 会话不存在或已过期，请重新发起")
 	}
-	if entry == nil {
-		entry, err = consumePasskeySessionEntryFromMemory(sessionID)
-		if err != nil {
-			return nil, err
-		}
+
+	var entry passkeySessionEntry
+	if err := json.Unmarshal([]byte(raw), &entry); err != nil {
+		return nil, commonpkg.NewInternalError("Passkey 会话数据异常")
 	}
 
 	// 防止把“注册会话”拿去走“登录校验”或反向混用。
@@ -206,65 +164,7 @@ func consumePasskeySessionEntry(redisClient *redis.Client, sessionID string, exp
 		return nil, commonpkg.NewValidationError("Passkey 会话已过期，请重新发起")
 	}
 
-	return entry, nil
-}
-
-func consumePasskeySessionEntryFromRedis(redisClient *redis.Client, sessionID string) (*passkeySessionEntry, error) {
-	if redisClient == nil {
-		return nil, nil
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-
-	key := redis2.RedisKey("passkey", "session", sessionID)
-	payload, err := redisClient.GetDel(ctx, key).Result()
-	if err != nil {
-		if errors.Is(err, redis.Nil) {
-			return nil, nil
-		}
-		// Redis 异常时回退本地内存，避免影响单机兼容路径。
-		log.Printf("⚠️ Redis 读取 Passkey 会话失败，回退内存会话: %v", err)
-		return nil, nil
-	}
-
-	if strings.TrimSpace(payload) == "" {
-		return nil, nil
-	}
-
-	var entry passkeySessionEntry
-	if err := json.Unmarshal([]byte(payload), &entry); err != nil {
-		return nil, commonpkg.NewInternalError("Passkey 会话数据异常")
-	}
-
 	return &entry, nil
-}
-
-func consumePasskeySessionEntryFromMemory(sessionID string) (*passkeySessionEntry, error) {
-	// LoadAndDelete 保证会话只可使用一次，天然抵御挑战重放。
-	raw, ok := passkeySessionStore.LoadAndDelete(sessionID)
-	if !ok {
-		return nil, commonpkg.NewValidationError("Passkey 会话不存在或已过期，请重新发起")
-	}
-
-	entry, ok := raw.(passkeySessionEntry)
-	if !ok {
-		return nil, commonpkg.NewInternalError("Passkey 会话数据异常")
-	}
-
-	return &entry, nil
-}
-
-// cleanupExpiredPasskeySessions 清理内存中已过期的会话记录。
-func cleanupExpiredPasskeySessions() {
-	now := time.Now()
-	passkeySessionStore.Range(func(key, value interface{}) bool {
-		entry, ok := value.(passkeySessionEntry)
-		if !ok || now.After(entry.ExpiresAt) {
-			passkeySessionStore.Delete(key)
-		}
-		return true
-	})
 }
 
 // generatePasskeySessionID 生成高熵的一次性会话 ID。

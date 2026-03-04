@@ -6,8 +6,10 @@ package di
 import (
 	"perfect-pic-server/internal/config"
 	"perfect-pic-server/internal/handler"
+	"perfect-pic-server/internal/pkg/cache"
 	"perfect-pic-server/internal/pkg/database"
 	pkgmail "perfect-pic-server/internal/pkg/email"
+	jwtpkg "perfect-pic-server/internal/pkg/jwt"
 	"perfect-pic-server/internal/pkg/redis"
 	"perfect-pic-server/internal/repository"
 	"perfect-pic-server/internal/router"
@@ -20,8 +22,15 @@ import (
 
 func InitializeApplication() (*Application, error) {
 	wire.Build(
+		config.NewStaticConfig,
+		config.NewRedisClientConfig,
+		config.NewJWTConfig,
+		config.NewCacheConfig,
+		config.NewDBConnectionConfig,
 		database.NewGormDB,
 		redis.NewRedisClient,
+		jwtpkg.NewJWT,
+		cache.NewStore,
 		repository.NewUserRepository,
 		repository.NewImageRepository,
 		repository.NewSettingRepository,

@@ -1,30 +1,22 @@
 package service
 
 import (
-	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"log"
 	"math"
 	commonpkg "perfect-pic-server/internal/common"
-	"perfect-pic-server/internal/config"
 	"perfect-pic-server/internal/consts"
 	moduledto "perfect-pic-server/internal/dto"
 	"perfect-pic-server/internal/model"
-	"perfect-pic-server/internal/pkg/jwt"
-	redis2 "perfect-pic-server/internal/pkg/redis"
 	"perfect-pic-server/internal/pkg/validator"
 	"strconv"
 	"time"
 
-	"github.com/redis/go-redis/v9"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
-
-var errRedisTokenCASMismatch = errors.New("redis token cas mismatch")
 
 // GenerateForgetPasswordToken 生成忘记密码 Token，有效期 15 分钟
 func (s *UserService) GenerateForgetPasswordToken(userID uint) (string, error) {
@@ -35,108 +27,82 @@ func (s *UserService) GenerateForgetPasswordToken(userID uint) (string, error) {
 	}
 	token := hex.EncodeToString(b)
 
-	resetToken := moduledto.ForgetPasswordToken{
-		UserID:    userID,
-		Token:     token,
-		ExpiresAt: time.Now().Add(15 * time.Minute),
-	}
-
-	if redisClient := s.redisDB; redisClient != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-		defer cancel()
-
-		// 保证一个用户只有一个有效 token
-		userKey := redis2.RedisKey("password_reset", "user", strconv.FormatUint(uint64(userID), 10))
-		if oldToken, err := redisClient.Get(ctx, userKey).Result(); err == nil && oldToken != "" {
-			oldTokenKey := redis2.RedisKey("password_reset", "token", oldToken)
-			_ = redisClient.Del(ctx, oldTokenKey).Err()
-		}
-
-		tokenKey := redis2.RedisKey("password_reset", "token", token)
-		if err := redisClient.Set(ctx, tokenKey, strconv.FormatUint(uint64(userID), 10), 15*time.Minute).Err(); err == nil {
-			if err2 := redisClient.Set(ctx, userKey, token, 15*time.Minute).Err(); err2 == nil {
-				return token, nil
-			} else {
-				log.Printf("⚠️ Redis 写入密码重置用户索引失败，回退内存 token 存储: %v", err2)
-			}
-			// 避免出现 tokenKey 已写入但 userKey 缺失的不一致状态。
-			_ = redisClient.Del(ctx, tokenKey).Err()
-		} else {
-			log.Printf("⚠️ Redis 写入密码重置 token 失败，回退内存 token 存储: %v", err)
-		}
-	}
-
-	// 存储（覆盖之前的）
-	if prev, ok := s.passwordResetStore.Load(userID); ok {
-		if prevToken, ok2 := prev.(string); ok2 && prevToken != "" {
-			s.passwordResetTokenStore.Delete(prevToken)
-		}
-	}
-	s.passwordResetStore.Store(userID, token)
-	s.passwordResetTokenStore.Store(token, resetToken)
+	ttl := 15 * time.Minute
+	tokenKey := s.cache.RedisKey("password_reset", "token", token)
+	userKey := s.cache.RedisKey("password_reset", "user", strconv.FormatUint(uint64(userID), 10))
+	uidStr := strconv.FormatUint(uint64(userID), 10)
+	s.cache.SetIndexed(userKey, tokenKey, uidStr, ttl)
 	return token, nil
 }
 
 // VerifyForgetPasswordToken 验证忘记密码 Token
 func (s *UserService) VerifyForgetPasswordToken(token string) (uint, bool) {
-	if redisClient := s.redisDB; redisClient != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-		defer cancel()
-
-		tokenKey := redis2.RedisKey("password_reset", "token", token)
-		uidStr, err := redisClient.Get(ctx, tokenKey).Result()
-		if err == nil {
-			uid, parseErr := strconv.ParseUint(uidStr, 10, 64)
-			if parseErr == nil {
-				// Ensure the parsed UID fits into the platform-dependent uint type.
-				if uid > math.MaxUint {
-					_ = redisClient.Del(ctx, tokenKey).Err()
-					return 0, false
-				}
-				userKey := redis2.RedisKey("password_reset", "user", strconv.FormatUint(uid, 10))
-				casErr := verifyAndConsumeRedisTokenPair(ctx, redisClient, tokenKey, userKey, token, uidStr)
-				if casErr == nil {
-					return uint(uid), true
-				}
-
-				// 比对失败或并发竞争时，仅清理当前 tokenKey，避免误删新 token 对应的 userKey。
-				if errors.Is(casErr, errRedisTokenCASMismatch) {
-					_ = redisClient.Del(ctx, tokenKey).Err()
-					return 0, false
-				}
-
-				return 0, false
-			}
-			_ = redisClient.Del(ctx, tokenKey).Err()
-			return 0, false
-		}
-		if !errors.Is(err, redis.Nil) {
-			log.Printf("⚠️ Redis 读取密码重置 token 失败，回退内存 token 存储: %v", err)
-		}
-	}
-
-	// LoadAndDelete 保证并发下同一 token 只会被成功消费一次。
-	val, ok := s.passwordResetTokenStore.LoadAndDelete(token)
+	tokenKey := s.cache.RedisKey("password_reset", "token", token)
+	uidStr, ok := s.cache.Get(tokenKey)
 	if !ok {
 		return 0, false
 	}
+	uid, parseErr := strconv.ParseUint(uidStr, 10, 64)
+	if parseErr != nil || uid > math.MaxUint {
+		s.cache.Delete(tokenKey)
+		return 0, false
+	}
+	userKey := s.cache.RedisKey("password_reset", "user", strconv.FormatUint(uid, 10))
+	if !s.cache.CompareAndDeletePair(userKey, tokenKey, tokenKey, uidStr) {
+		s.cache.Delete(tokenKey)
+		return 0, false
+	}
+	return uint(uid), true
+}
 
-	resetToken, ok := val.(moduledto.ForgetPasswordToken)
+// GenerateEmailVerificationToken 生成邮箱验证 Token，有效期 30 分钟。
+func (s *UserService) GenerateEmailVerificationToken(userID uint, email string) (string, error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	token := hex.EncodeToString(b)
+
+	ttl := 30 * time.Minute
+	payload, err := json.Marshal(moduledto.EmailVerifyRedisPayload{
+		UserID: userID,
+		Email:  email,
+	})
+	if err != nil {
+		return "", err
+	}
+
+	tokenKey := s.cache.RedisKey("email_verify", "token", token)
+	userKey := s.cache.RedisKey("email_verify", "user", strconv.FormatUint(uint64(userID), 10))
+	s.cache.SetIndexed(userKey, tokenKey, string(payload), ttl)
+	return token, nil
+}
+
+// VerifyEmailVerificationToken 验证并消费邮箱验证 Token。
+func (s *UserService) VerifyEmailVerificationToken(token string) (uint, string, bool) {
+	if token == "" {
+		return 0, "", false
+	}
+
+	tokenKey := s.cache.RedisKey("email_verify", "token", token)
+	raw, ok := s.cache.Get(tokenKey)
 	if !ok {
-		return 0, false
+		return 0, "", false
 	}
 
-	// 仅当 user->token 映射仍指向当前 token 时再删除，避免误删更新后的新 token 映射。
-	if current, ok := s.passwordResetStore.Load(resetToken.UserID); ok {
-		if currentToken, ok2 := current.(string); ok2 && currentToken == token {
-			s.passwordResetStore.Delete(resetToken.UserID)
-		}
+	var payload moduledto.EmailVerifyRedisPayload
+	if err := json.Unmarshal([]byte(raw), &payload); err != nil || payload.UserID == 0 || payload.Email == "" {
+		s.cache.Delete(tokenKey)
+		return 0, "", false
 	}
 
-	if time.Now().After(resetToken.ExpiresAt) {
-		return 0, false
+	userKey := s.cache.RedisKey("email_verify", "user", strconv.FormatUint(uint64(payload.UserID), 10))
+	if !s.cache.CompareAndDeletePair(userKey, tokenKey, tokenKey, raw) {
+		s.cache.Delete(tokenKey)
+		return 0, "", false
 	}
-	return resetToken.UserID, true
+
+	return payload.UserID, payload.Email, true
 }
 
 // GenerateEmailChangeToken 生成修改邮箱 Token，有效期 30 分钟。
@@ -148,56 +114,18 @@ func (s *UserService) GenerateEmailChangeToken(userID uint, oldEmail, newEmail s
 	}
 	token := hex.EncodeToString(b)
 
-	changeToken := moduledto.EmailChangeToken{
-		UserID:    userID,
-		Token:     token,
-		OldEmail:  oldEmail,
-		NewEmail:  newEmail,
-		ExpiresAt: time.Now().Add(30 * time.Minute),
+	ttl := 30 * time.Minute
+	payload, err := json.Marshal(moduledto.EmailChangeRedisPayload{
+		UserID:   userID,
+		OldEmail: oldEmail,
+		NewEmail: newEmail,
+	})
+	if err != nil {
+		return "", err
 	}
-
-	if redisClient := s.redisDB; redisClient != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-		defer cancel()
-
-		// 保证一个用户只有一个有效 token
-		userKey := redis2.RedisKey("email_change", "user", strconv.FormatUint(uint64(userID), 10))
-		if oldToken, err := redisClient.Get(ctx, userKey).Result(); err == nil && oldToken != "" {
-			oldTokenKey := redis2.RedisKey("email_change", "token", oldToken)
-			_ = redisClient.Del(ctx, oldTokenKey).Err()
-		}
-
-		payload, err := json.Marshal(moduledto.EmailChangeRedisPayload{
-			UserID:   userID,
-			OldEmail: oldEmail,
-			NewEmail: newEmail,
-		})
-		if err != nil {
-			return "", err
-		}
-
-		tokenKey := redis2.RedisKey("email_change", "token", token)
-		if err := redisClient.Set(ctx, tokenKey, payload, 30*time.Minute).Err(); err == nil {
-			if err2 := redisClient.Set(ctx, userKey, token, 30*time.Minute).Err(); err2 == nil {
-				return token, nil
-			} else {
-				log.Printf("⚠️ Redis 写入邮箱修改用户索引失败，回退内存 token 存储: %v", err2)
-			}
-			// 避免出现 tokenKey 已写入但 userKey 缺失的不一致状态。
-			_ = redisClient.Del(ctx, tokenKey).Err()
-		} else {
-			log.Printf("⚠️ Redis 写入邮箱修改 token 失败，回退内存 token 存储: %v", err)
-		}
-	}
-
-	// 存储（覆盖之前的）
-	if prev, ok := s.emailChangeStore.Load(userID); ok {
-		if prevToken, ok2 := prev.(string); ok2 && prevToken != "" {
-			s.emailChangeTokenStore.Delete(prevToken)
-		}
-	}
-	s.emailChangeStore.Store(userID, token)
-	s.emailChangeTokenStore.Store(token, changeToken)
+	tokenKey := s.cache.RedisKey("email_change", "token", token)
+	userKey := s.cache.RedisKey("email_change", "user", strconv.FormatUint(uint64(userID), 10))
+	s.cache.SetIndexed(userKey, tokenKey, string(payload), ttl)
 	return token, nil
 }
 
@@ -209,63 +137,29 @@ func (s *UserService) VerifyEmailChangeToken(token string) (*moduledto.EmailChan
 		return nil, false
 	}
 
-	if redisClient := s.redisDB; redisClient != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-		defer cancel()
-
-		tokenKey := redis2.RedisKey("email_change", "token", token)
-		raw, err := redisClient.Get(ctx, tokenKey).Result()
-		if err == nil && raw != "" {
-			var payload moduledto.EmailChangeRedisPayload
-			if err := json.Unmarshal([]byte(raw), &payload); err != nil || payload.UserID == 0 {
-				_ = redisClient.Del(ctx, tokenKey).Err()
-				return nil, false
-			}
-
-			userKey := redis2.RedisKey("email_change", "user", strconv.FormatUint(uint64(payload.UserID), 10))
-			casErr := verifyAndConsumeRedisTokenPair(ctx, redisClient, tokenKey, userKey, token, raw)
-			if casErr == nil {
-				return &moduledto.EmailChangeToken{
-					UserID:   payload.UserID,
-					OldEmail: payload.OldEmail,
-					NewEmail: payload.NewEmail,
-				}, true
-			}
-
-			// 比对失败或并发竞争时，仅清理当前 tokenKey，避免误删新 token 对应的 userKey。
-			if errors.Is(casErr, errRedisTokenCASMismatch) {
-				_ = redisClient.Del(ctx, tokenKey).Err()
-				return nil, false
-			}
-			return nil, false
-		}
-		if err != nil && !errors.Is(err, redis.Nil) {
-			log.Printf("⚠️ Redis 读取邮箱修改 token 失败，回退内存 token 存储: %v", err)
-		}
-	}
-
-	// LoadAndDelete 保证并发下同一 token 只会被成功消费一次。
-	val, ok := s.emailChangeTokenStore.LoadAndDelete(token)
+	tokenKey := s.cache.RedisKey("email_change", "token", token)
+	raw, ok := s.cache.Get(tokenKey)
 	if !ok {
 		return nil, false
 	}
 
-	changeToken, ok := val.(moduledto.EmailChangeToken)
-	if !ok {
+	var payload moduledto.EmailChangeRedisPayload
+	if err := json.Unmarshal([]byte(raw), &payload); err != nil || payload.UserID == 0 {
+		s.cache.Delete(tokenKey)
 		return nil, false
 	}
 
-	// 仅当 user->token 映射仍指向当前 token 时再删除，避免误删更新后的新 token 映射。
-	if current, ok := s.emailChangeStore.Load(changeToken.UserID); ok {
-		if currentToken, ok2 := current.(string); ok2 && currentToken == token {
-			s.emailChangeStore.Delete(changeToken.UserID)
-		}
-	}
-
-	if time.Now().After(changeToken.ExpiresAt) {
+	userKey := s.cache.RedisKey("email_change", "user", strconv.FormatUint(uint64(payload.UserID), 10))
+	if !s.cache.CompareAndDeletePair(userKey, tokenKey, tokenKey, raw) {
+		s.cache.Delete(tokenKey)
 		return nil, false
 	}
-	return &changeToken, true
+	return &moduledto.EmailChangeToken{
+		UserID:   payload.UserID,
+		Token:    token,
+		OldEmail: payload.OldEmail,
+		NewEmail: payload.NewEmail,
+	}, true
 }
 
 // GetSystemDefaultStorageQuota 获取系统默认存储配额
@@ -335,8 +229,7 @@ func (s *UserService) UpdateUsernameAndGenerateToken(userID uint, newUsername st
 		return "", commonpkg.NewInternalError("更新失败")
 	}
 
-	cfg := config.Get()
-	token, err := jwt.GenerateLoginToken(userID, newUsername, isAdmin, time.Hour*time.Duration(cfg.JWT.ExpirationHours))
+	token, err := s.jwt.GenerateLoginToken(userID, newUsername, isAdmin)
 	if err != nil {
 		return "", commonpkg.NewInternalError("更新失败")
 	}

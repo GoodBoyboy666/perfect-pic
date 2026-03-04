@@ -2,36 +2,34 @@ package service
 
 import (
 	"perfect-pic-server/internal/config"
+	"perfect-pic-server/internal/pkg/cache"
 	"perfect-pic-server/internal/pkg/email"
+	"perfect-pic-server/internal/pkg/jwt"
 	repo "perfect-pic-server/internal/repository"
-	"sync"
-
-	"github.com/redis/go-redis/v9"
 )
 
 type AuthService struct {
 	dbConfig *config.DBConfig
+	jwt      *jwt.JWT
 }
 
 type UserService struct {
 	userStore repo.UserStore
 	dbConfig  *config.DBConfig
-	redisDB   *redis.Client
-
-	passwordResetStore      sync.Map
-	passwordResetTokenStore sync.Map
-	emailChangeStore        sync.Map
-	emailChangeTokenStore   sync.Map
+	jwt       *jwt.JWT
+	cache     *cache.Store
 }
 
 type ImageService struct {
-	imageStore repo.ImageStore
-	dbConfig   *config.DBConfig
+	imageStore   repo.ImageStore
+	dbConfig     *config.DBConfig
+	staticConfig *config.Config
 }
 
 type EmailService struct {
-	dbConfig *config.DBConfig
-	mailer   *email.Mailer
+	dbConfig     *config.DBConfig
+	staticConfig *config.Config
+	mailer       *email.Mailer
 }
 
 type InitService struct {
@@ -40,9 +38,9 @@ type InitService struct {
 }
 
 type PasskeyService struct {
-	dbConfig     *config.DBConfig
-	passkeyStore repo.PasskeyStore
-	redisDB      *redis.Client
+	dbConfig            *config.DBConfig
+	passkeyStore        repo.PasskeyStore
+	passkeySessionCache *cache.Store
 }
 
 type SettingsService struct {
@@ -54,16 +52,21 @@ type CaptchaService struct {
 	dbConfig *config.DBConfig
 }
 
-func NewAuthService(dbConfig *config.DBConfig) *AuthService {
+func NewAuthService(dbConfig *config.DBConfig, staticConfig *config.Config) *AuthService {
 	return &AuthService{dbConfig: dbConfig}
 }
 
-func NewUserService(userStore repo.UserStore, dbConfig *config.DBConfig, redisDB *redis.Client) *UserService {
-	return &UserService{userStore: userStore, dbConfig: dbConfig, redisDB: redisDB}
+func NewUserService(userStore repo.UserStore, dbConfig *config.DBConfig, cache *cache.Store, jwt *jwt.JWT) *UserService {
+	return &UserService{
+		userStore:        userStore,
+		dbConfig:         dbConfig,
+		jwt:              jwt,
+		cache:            cache,
+	}
 }
 
-func NewImageService(imageStore repo.ImageStore, dbConfig *config.DBConfig) *ImageService {
-	return &ImageService{imageStore: imageStore, dbConfig: dbConfig}
+func NewImageService(imageStore repo.ImageStore, dbConfig *config.DBConfig, staticConfig *config.Config) *ImageService {
+	return &ImageService{imageStore: imageStore, dbConfig: dbConfig, staticConfig: staticConfig}
 }
 
 func NewEmailService(dbConfig *config.DBConfig, mailer *email.Mailer) *EmailService {
@@ -74,8 +77,12 @@ func NewInitService(systemStore repo.SystemStore, dbConfig *config.DBConfig) *In
 	return &InitService{systemStore: systemStore, dbConfig: dbConfig}
 }
 
-func NewPasskeyService(passkeyStore repo.PasskeyStore, dbConfig *config.DBConfig, redisDB *redis.Client) *PasskeyService {
-	return &PasskeyService{passkeyStore: passkeyStore, dbConfig: dbConfig, redisDB: redisDB}
+func NewPasskeyService(passkeyStore repo.PasskeyStore, dbConfig *config.DBConfig, cache *cache.Store) *PasskeyService {
+	return &PasskeyService{
+		passkeyStore:        passkeyStore,
+		dbConfig:            dbConfig,
+		passkeySessionCache: cache,
+	}
 }
 
 func NewSettingsService(settingStore repo.SettingStore, dbConfig *config.DBConfig) *SettingsService {

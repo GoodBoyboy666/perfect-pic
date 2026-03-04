@@ -1,14 +1,17 @@
 package service
 
 import (
+	"encoding/json"
 	"mime/multipart"
-	"sync"
+	"strconv"
 	"testing"
+	"time"
 
 	"perfect-pic-server/internal/config"
 	moduledto "perfect-pic-server/internal/dto"
 	"perfect-pic-server/internal/model"
 	pkgmail "perfect-pic-server/internal/pkg/email"
+	redis2 "perfect-pic-server/internal/pkg/redis"
 	"perfect-pic-server/internal/repository"
 	"perfect-pic-server/internal/testutils"
 
@@ -231,21 +234,51 @@ func resetPasswordResetStore() {
 	if testService == nil || testService.userService == nil {
 		return
 	}
-	clearSyncMap(&testService.userService.passwordResetStore)
-	clearSyncMap(&testService.userService.passwordResetTokenStore)
+	testService.userService.resetTokenCachesForTest()
 }
 
 func resetEmailChangeStore() {
 	if testService == nil || testService.userService == nil {
 		return
 	}
-	clearSyncMap(&testService.userService.emailChangeStore)
-	clearSyncMap(&testService.userService.emailChangeTokenStore)
+	testService.userService.resetTokenCachesForTest()
 }
 
-func clearSyncMap(store *sync.Map) {
-	store.Range(func(key, _ interface{}) bool {
-		store.Delete(key)
-		return true
+func ttlForLocalToken(expiresAt time.Time) time.Duration {
+	ttl := time.Until(expiresAt)
+	if ttl <= 0 {
+		return -time.Nanosecond
+	}
+	return ttl
+}
+
+func (s *UserService) resetTokenCachesForTest() {
+	if s.cache != nil {
+		s.cache.ClearLocal()
+	}
+	if s.emailChangeCache != nil {
+		s.emailChangeCache.ClearLocal()
+	}
+}
+
+func (s *UserService) putEmailChangeTokenLocalForTest(token moduledto.EmailChangeToken) {
+	if s.emailChangeCache == nil {
+		return
+	}
+
+	payload, err := json.Marshal(moduledto.EmailChangeRedisPayload{
+		UserID:   token.UserID,
+		OldEmail: token.OldEmail,
+		NewEmail: token.NewEmail,
 	})
+	if err != nil {
+		return
+	}
+
+	s.emailChangeCache.SetIndexed(
+		redis2.RedisKey("email_change", "user", strconv.FormatUint(uint64(token.UserID), 10)),
+		redis2.RedisKey("email_change", "token", token.Token),
+		string(payload),
+		ttlForLocalToken(token.ExpiresAt),
+	)
 }

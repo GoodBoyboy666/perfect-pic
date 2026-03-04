@@ -9,8 +9,10 @@ package di
 import (
 	"perfect-pic-server/internal/config"
 	"perfect-pic-server/internal/handler"
+	"perfect-pic-server/internal/pkg/cache"
 	"perfect-pic-server/internal/pkg/database"
 	"perfect-pic-server/internal/pkg/email"
+	"perfect-pic-server/internal/pkg/jwt"
 	"perfect-pic-server/internal/pkg/redis"
 	"perfect-pic-server/internal/repository"
 	"perfect-pic-server/internal/router"
@@ -22,24 +24,31 @@ import (
 // Injectors from wire.go:
 
 func InitializeApplication() (*Application, error) {
-	db, err := database.NewGormDB()
+	configConfig := config.NewStaticConfig()
+	dbConnectionConfig := config.NewDBConnectionConfig(configConfig)
+	db, err := database.NewGormDB(dbConnectionConfig)
 	if err != nil {
 		return nil, err
 	}
 	settingStore := repository.NewSettingRepository(db)
 	dbConfig := config.NewDBConfig(settingStore)
-	authService := service.NewAuthService(dbConfig)
+	authService := service.NewAuthService(dbConfig, configConfig)
 	captchaService := service.NewCaptchaService(dbConfig)
 	userStore := repository.NewUserRepository(db)
-	client := redis.NewRedisClient()
-	userService := service.NewUserService(userStore, dbConfig, client)
+	redisConfig := config.NewRedisClientConfig(configConfig)
+	client := redis.NewRedisClient(redisConfig)
+	cacheConfig := config.NewCacheConfig(configConfig)
+	store := cache.NewStore(client, cacheConfig)
+	jwtConfig := config.NewJWTConfig(configConfig)
+	jwtJWT := jwt.NewJWT(jwtConfig)
+	userService := service.NewUserService(userStore, dbConfig, store, jwtJWT)
 	mailer := email.NewMailer()
 	emailService := service.NewEmailService(dbConfig, mailer)
 	systemStore := repository.NewSystemRepository(db)
 	initService := service.NewInitService(systemStore, dbConfig)
 	authUseCase := app.NewAuthUseCase(authService, userStore, userService, emailService, initService, dbConfig)
 	passkeyStore := repository.NewPasskeyRepository(db)
-	passkeyService := service.NewPasskeyService(passkeyStore, dbConfig, client)
+	passkeyService := service.NewPasskeyService(passkeyStore, dbConfig, store)
 	passkeyUseCase := app.NewPasskeyUseCase(passkeyService, passkeyStore, authService, userStore)
 	authHandler := handler.NewAuthHandler(authService, captchaService, authUseCase, initService, dbConfig, passkeyUseCase)
 	imageStore := repository.NewImageRepository(db)
@@ -49,9 +58,9 @@ func InitializeApplication() (*Application, error) {
 	settingsUseCase := admin.NewSettingsUseCase(emailService)
 	settingsHandler := handler.NewSettingsHandler(settingsService, settingsUseCase)
 	userUseCase := app.NewUserUseCase(userService, userStore, emailService, dbConfig)
-	imageService := service.NewImageService(imageStore, dbConfig)
+	imageService := service.NewImageService(imageStore, dbConfig, configConfig)
 	userManageUseCase := admin.NewUserManageUseCase(userService, imageService, passkeyService)
-	imageUseCase := app.NewImageUseCase(imageService, userService, userStore, dbConfig)
+	imageUseCase := app.NewImageUseCase(imageService, userService, userStore, configConfig, dbConfig)
 	userHandler := handler.NewUserHandler(userService, userUseCase, userManageUseCase, imageService, imageUseCase, authService, passkeyService, passkeyUseCase, client)
 	imageHandler := handler.NewImageHandler(imageService, imageUseCase)
 	routerRouter := router.NewRouter(authHandler, systemHandler, settingsHandler, userHandler, imageHandler, dbConfig, db, client)
