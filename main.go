@@ -15,7 +15,7 @@ import (
 	"perfect-pic-server/internal/config"
 	"perfect-pic-server/internal/di"
 	"perfect-pic-server/internal/middleware"
-	"perfect-pic-server/internal/utils"
+	"perfect-pic-server/internal/pkg/pathpkg"
 	"strings"
 	"syscall"
 	"time"
@@ -233,7 +233,7 @@ func checkSecurePath(path string) {
 		log.Fatalf("❌ 路径解析失败: %v", err)
 	}
 	// 先检查目录节点本身不是符号链接（例如 uploads/imgs 本身被链接到外部目录）。
-	if err := utils.EnsurePathNotSymlink(absPath); err != nil {
+	if err := pathpkg.EnsurePathNotSymlink(absPath); err != nil {
 		log.Fatalf("❌ 安全配置错误: 静态资源目录 '%s' 存在符号链接风险: %v", path, err)
 	}
 
@@ -251,7 +251,7 @@ func checkSecurePath(path string) {
 	rel, err := filepath.Rel(cwd, absPath)
 	if err == nil && !strings.HasPrefix(rel, "..") {
 		// 对项目内路径再做一次 cwd->目标 的链路检查，防止中间层级存在符号链接穿透。
-		if err := utils.EnsureNoSymlinkBetween(cwd, absPath); err != nil {
+		if err := pathpkg.EnsureNoSymlinkBetween(cwd, absPath); err != nil {
 			log.Fatalf("❌ 安全配置错误: 静态资源目录 '%s' 路径链路存在符号链接风险: %v", path, err)
 		}
 

@@ -15,7 +15,7 @@ import (
 	"perfect-pic-server/internal/model"
 	"perfect-pic-server/internal/pkg/jwt"
 	redis2 "perfect-pic-server/internal/pkg/redis"
-	"perfect-pic-server/internal/utils"
+	"perfect-pic-server/internal/pkg/validator"
 	"strconv"
 	"time"
 
@@ -318,7 +318,7 @@ func (s *UserService) GetUserProfile(userID uint) (*moduledto.UserProfileRespons
 // UpdateUsernameAndGenerateToken 更新用户名并签发新登录令牌。
 func (s *UserService) UpdateUsernameAndGenerateToken(userID uint, newUsername string, isAdmin bool) (string, error) {
 	// Profile 路径统一禁止保留用户名；管理员后台修改用户名走 AdminPrepareUserUpdates（允许保留词）。
-	if ok, msg := utils.ValidateUsername(newUsername); !ok {
+	if ok, msg := validator.ValidateUsername(newUsername); !ok {
 		return "", commonpkg.NewValidationError(msg)
 	}
 
@@ -346,7 +346,7 @@ func (s *UserService) UpdateUsernameAndGenerateToken(userID uint, newUsername st
 
 // UpdatePasswordByOldPassword 使用旧密码校验后更新新密码。
 func (s *UserService) UpdatePasswordByOldPassword(userID uint, oldPassword, newPassword string) error {
-	if ok, msg := utils.ValidatePassword(newPassword); !ok {
+	if ok, msg := validator.ValidatePassword(newPassword); !ok {
 		return commonpkg.NewValidationError(msg)
 	}
 

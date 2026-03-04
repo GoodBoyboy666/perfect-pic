@@ -10,7 +10,7 @@ import (
 	commonpkg "perfect-pic-server/internal/common"
 	"perfect-pic-server/internal/config"
 	"perfect-pic-server/internal/model"
-	"perfect-pic-server/internal/utils"
+	"perfect-pic-server/internal/pkg/pathpkg"
 	"strings"
 	"time"
 
@@ -63,12 +63,12 @@ func (c *ImageUseCase) ProcessImageUpload(file *multipart.FileHeader, uid uint) 
 		return nil, "", commonpkg.NewInternalError("系统错误: 上传目录解析失败")
 	}
 	// 先检查上传根目录节点本身不是符号链接（防止根目录直接指向外部路径）。
-	if err := utils.EnsurePathNotSymlink(uploadRootAbs); err != nil {
+	if err := pathpkg.EnsurePathNotSymlink(uploadRootAbs); err != nil {
 		log.Printf("Upload root security check failed: %v\n", err)
 		return nil, "", commonpkg.NewInternalError("系统错误: 上传目录存在符号链接风险")
 	}
 	// 完整的磁盘文件夹路径
-	fullDir, err := utils.SecureJoin(uploadRootAbs, datePath)
+	fullDir, err := pathpkg.SecureJoin(uploadRootAbs, datePath)
 	if err != nil {
 		log.Printf("SecureJoin dir error: %v\n", err)
 		return nil, "", commonpkg.NewInternalError("系统错误: 非法存储目录")
@@ -80,14 +80,14 @@ func (c *ImageUseCase) ProcessImageUpload(file *multipart.FileHeader, uid uint) 
 		return nil, "", commonpkg.NewInternalError("系统错误: 无法创建存储目录")
 	}
 	// 目录创建后再次检查链路，降低 TOCTOU 风险。
-	if err := utils.EnsureNoSymlinkBetween(uploadRootAbs, fullDir); err != nil {
+	if err := pathpkg.EnsureNoSymlinkBetween(uploadRootAbs, fullDir); err != nil {
 		log.Printf("Upload dir security check failed: %v\n", err)
 		return nil, "", commonpkg.NewInternalError("系统错误: 存储目录存在符号链接风险")
 	}
 
 	// 生成唯一文件名
 	newFilename := uuid.New().String() + ext
-	dst, err := utils.SecureJoin(fullDir, newFilename)
+	dst, err := pathpkg.SecureJoin(fullDir, newFilename)
 	if err != nil {
 		log.Printf("SecureJoin dst error: %v\n", err)
 		return nil, "", commonpkg.NewInternalError("系统错误: 非法文件路径")
@@ -144,7 +144,7 @@ func (c *ImageUseCase) UpdateUserAvatar(user *model.User, file *multipart.FileHe
 		return "", commonpkg.NewInternalError("系统错误: 头像目录解析失败")
 	}
 	// 先检查头像根目录节点本身不是符号链接。
-	if err := utils.EnsurePathNotSymlink(avatarRootAbs); err != nil {
+	if err := pathpkg.EnsurePathNotSymlink(avatarRootAbs); err != nil {
 		log.Printf("Avatar root security check failed: %v\n", err)
 		return "", commonpkg.NewInternalError("系统错误: 头像目录存在符号链接风险")
 	}
@@ -152,7 +152,7 @@ func (c *ImageUseCase) UpdateUserAvatar(user *model.User, file *multipart.FileHe
 	ext := strings.ToLower(filepath.Ext(file.Filename))
 	// userIdStr for path
 	userIdStr := fmt.Sprintf("%v", user.ID)
-	storageDir, err := utils.SecureJoin(avatarRootAbs, userIdStr)
+	storageDir, err := pathpkg.SecureJoin(avatarRootAbs, userIdStr)
 	if err != nil {
 		log.Printf("Avatar storage dir error: %v\n", err)
 		return "", commonpkg.NewInternalError("系统错误: 非法头像目录")
@@ -164,14 +164,14 @@ func (c *ImageUseCase) UpdateUserAvatar(user *model.User, file *multipart.FileHe
 		return "", commonpkg.NewInternalError("系统错误: 无法创建存储目录")
 	}
 	// 用户目录创建后再次检查链路，确保新增层级未被符号链接替换。
-	if err := utils.EnsureNoSymlinkBetween(avatarRootAbs, storageDir); err != nil {
+	if err := pathpkg.EnsureNoSymlinkBetween(avatarRootAbs, storageDir); err != nil {
 		log.Printf("Avatar storage security check failed: %v\n", err)
 		return "", commonpkg.NewInternalError("系统错误: 头像目录存在符号链接风险")
 	}
 
 	// 生成唯一文件名
 	newFilename := uuid.New().String() + ext
-	dstPath, err := utils.SecureJoin(storageDir, newFilename)
+	dstPath, err := pathpkg.SecureJoin(storageDir, newFilename)
 	if err != nil {
 		log.Printf("Avatar dst secure join error: %v\n", err)
 		return "", commonpkg.NewInternalError("系统错误: 非法头像文件路径")
@@ -211,7 +211,7 @@ func (c *ImageUseCase) UpdateUserAvatar(user *model.User, file *multipart.FileHe
 
 	// 删除旧头像
 	if oldAvatar != "" {
-		oldAvatarPath, secureErr := utils.SecureJoin(storageDir, oldAvatar)
+		oldAvatarPath, secureErr := pathpkg.SecureJoin(storageDir, oldAvatar)
 		if secureErr != nil {
 			log.Printf("Old avatar secure path error: %v\n", secureErr)
 		} else {
@@ -239,18 +239,18 @@ func (c *ImageUseCase) RemoveUserAvatar(user *model.User) error {
 		return commonpkg.NewInternalError("系统错误: 头像目录解析失败")
 	}
 	// 删除头像前先校验头像根目录节点本身，防止根目录符号链接穿透。
-	if err := utils.EnsurePathNotSymlink(avatarRootAbs); err != nil {
+	if err := pathpkg.EnsurePathNotSymlink(avatarRootAbs); err != nil {
 		log.Printf("RemoveUserAvatar root security check failed: %v\n", err)
 		return commonpkg.NewInternalError("系统错误: 头像目录存在符号链接风险")
 	}
 
 	userIdStr := fmt.Sprintf("%v", user.ID)
-	storageDir, err := utils.SecureJoin(avatarRootAbs, userIdStr)
+	storageDir, err := pathpkg.SecureJoin(avatarRootAbs, userIdStr)
 	if err != nil {
 		log.Printf("RemoveUserAvatar storage dir secure join error: %v\n", err)
 		return commonpkg.NewInternalError("系统错误: 非法头像目录")
 	}
-	oldAvatarPath, err := utils.SecureJoin(storageDir, user.Avatar)
+	oldAvatarPath, err := pathpkg.SecureJoin(storageDir, user.Avatar)
 	if err != nil {
 		log.Printf("RemoveUserAvatar file secure join error: %v\n", err)
 		return commonpkg.NewInternalError("系统错误: 非法头像文件路径")

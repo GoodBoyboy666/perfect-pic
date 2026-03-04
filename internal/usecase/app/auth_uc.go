@@ -7,7 +7,7 @@ import (
 	"perfect-pic-server/internal/consts"
 	"perfect-pic-server/internal/model"
 	"perfect-pic-server/internal/pkg/jwt"
-	"perfect-pic-server/internal/utils"
+	"perfect-pic-server/internal/pkg/validator"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
@@ -37,15 +37,15 @@ func (c *AuthUseCase) RegisterUser(username, password, email string) error {
 		return httpx.NewAuthError(httpx.AuthErrorForbidden, "系统尚未初始化，请先完成初始化")
 	}
 
-	if ok, msg := utils.ValidatePassword(password); !ok {
+	if ok, msg := validator.ValidatePassword(password); !ok {
 		return httpx.NewAuthError(httpx.AuthErrorValidation, msg)
 	}
 
-	if ok, msg := utils.ValidateUsername(username); !ok {
+	if ok, msg := validator.ValidateUsername(username); !ok {
 		return httpx.NewAuthError(httpx.AuthErrorValidation, msg)
 	}
 
-	if ok, msg := utils.ValidateEmail(email); !ok {
+	if ok, msg := validator.ValidateEmail(email); !ok {
 		return httpx.NewAuthError(httpx.AuthErrorValidation, msg)
 	}
 
@@ -222,7 +222,7 @@ func (c *AuthUseCase) RequestPasswordReset(email string) error {
 
 // ResetPassword 使用重置令牌设置新密码。
 func (c *AuthUseCase) ResetPassword(token, newPassword string) error {
-	if ok, msg := utils.ValidatePassword(newPassword); !ok {
+	if ok, msg := validator.ValidatePassword(newPassword); !ok {
 		return httpx.NewAuthError(httpx.AuthErrorValidation, msg)
 	}
 

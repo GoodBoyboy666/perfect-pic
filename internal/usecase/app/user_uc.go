@@ -4,14 +4,14 @@ import (
 	"fmt"
 	commonpkg "perfect-pic-server/internal/common"
 	"perfect-pic-server/internal/consts"
-	"perfect-pic-server/internal/utils"
+	"perfect-pic-server/internal/pkg/validator"
 
 	"golang.org/x/crypto/bcrypt"
 )
 
 // RequestEmailChange 发起邮箱修改流程并异步发送验证邮件。
 func (c *UserUseCase) RequestEmailChange(userID uint, password, newEmail string) error {
-	if ok, msg := utils.ValidateEmail(newEmail); !ok {
+	if ok, msg := validator.ValidateEmail(newEmail); !ok {
 		return commonpkg.NewValidationError(msg)
 	}
 
