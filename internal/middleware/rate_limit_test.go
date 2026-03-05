@@ -6,13 +6,11 @@ import (
 	"net/http/httptest"
 	"perfect-pic-server/internal/pkg/ratelimit"
 	"testing"
-	"time"
 
 	"perfect-pic-server/internal/consts"
 	"perfect-pic-server/internal/model"
 
 	"github.com/gin-gonic/gin"
-	"github.com/redis/go-redis/v9"
 )
 
 // 测试内容：验证限流关闭时请求不会被拦截。
@@ -21,8 +19,8 @@ func TestRateLimitMiddleware_DisabledAllowsRequests(t *testing.T) {
 	setupTestDB(t)
 	rateLimitMiddleware := NewRateLimitMiddleware(
 		testService,
-		ratelimit.NewTokenBucketLimiter(nil),
-		ratelimit.NewIntervalLimiter(nil),
+		ratelimit.NewTokenBucketLimiter(ratelimit.NewBaseRateLimiter(nil, &ratelimit.Config{})),
+		ratelimit.NewIntervalLimiter(ratelimit.NewBaseRateLimiter(nil, &ratelimit.Config{})),
 	)
 
 	if err := testGormDB.Save(&model.Setting{Key: consts.ConfigRateLimitEnabled, Value: "false"}).Error; err != nil {
@@ -57,8 +55,8 @@ func TestRateLimitMiddleware_EnabledBlocksBurst(t *testing.T) {
 	setupTestDB(t)
 	rateLimitMiddleware := NewRateLimitMiddleware(
 		testService,
-		ratelimit.NewTokenBucketLimiter(nil),
-		ratelimit.NewIntervalLimiter(nil),
+		ratelimit.NewTokenBucketLimiter(ratelimit.NewBaseRateLimiter(nil, &ratelimit.Config{})),
+		ratelimit.NewIntervalLimiter(ratelimit.NewBaseRateLimiter(nil, &ratelimit.Config{})),
 	)
 
 	// 启用限流器：突发 1 个令牌且不补充（rps=0）。
@@ -94,8 +92,8 @@ func TestIntervalRateMiddleware_BlocksSecondRequest(t *testing.T) {
 	setupTestDB(t)
 	rateLimitMiddleware := NewRateLimitMiddleware(
 		testService,
-		ratelimit.NewTokenBucketLimiter(nil),
-		ratelimit.NewIntervalLimiter(nil),
+		ratelimit.NewTokenBucketLimiter(ratelimit.NewBaseRateLimiter(nil, &ratelimit.Config{})),
+		ratelimit.NewIntervalLimiter(ratelimit.NewBaseRateLimiter(nil, &ratelimit.Config{})),
 	)
 
 	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigEnableSensitiveRateLimit, Value: "true"}).Error
@@ -133,8 +131,8 @@ func TestIntervalRateMiddleware_WithAnotherConfigKey_BlocksSecondRequest(t *test
 	setupTestDB(t)
 	rateLimitMiddleware := NewRateLimitMiddleware(
 		testService,
-		ratelimit.NewTokenBucketLimiter(nil),
-		ratelimit.NewIntervalLimiter(nil),
+		ratelimit.NewTokenBucketLimiter(ratelimit.NewBaseRateLimiter(nil, &ratelimit.Config{})),
+		ratelimit.NewIntervalLimiter(ratelimit.NewBaseRateLimiter(nil, &ratelimit.Config{})),
 	)
 
 	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigEnableSensitiveRateLimit, Value: "true"}).Error
@@ -163,45 +161,5 @@ func TestIntervalRateMiddleware_WithAnotherConfigKey_BlocksSecondRequest(t *test
 	r.ServeHTTP(w2, req2)
 	if w2.Code != http.StatusTooManyRequests {
 		t.Fatalf("期望 429，实际为 %d", w2.Code)
-	}
-}
-
-// 测试内容：验证禁用参数下 Redis 限流直接放行。
-func TestAllowByRedisRateLimit_DisabledReturnsOK(t *testing.T) {
-	ok, err := ratelimit.AllowByRedisRateLimit(nil, "rate", "rps", "burst", "1.2.3.4", 0, 1)
-	if err != nil || !ok {
-		t.Fatalf("期望 ok when disabled，实际为 ok=%v err=%v", ok, err)
-	}
-	ok, err = ratelimit.AllowByRedisRateLimit(nil, "rate", "rps", "burst", "1.2.3.4", 1, 0)
-	if err != nil || !ok {
-		t.Fatalf("期望 ok when disabled，实际为 ok=%v err=%v", ok, err)
-	}
-}
-
-// 测试内容：验证 Redis 不可用时速率限流返回错误。
-func TestAllowByRedisRateLimit_UnavailableRedisReturnsError(t *testing.T) {
-	client := redis.NewClient(&redis.Options{
-		Addr:        "127.0.0.1:1",
-		DialTimeout: 50 * time.Millisecond,
-	})
-	defer func() { _ = client.Close() }()
-
-	ok, err := ratelimit.AllowByRedisRateLimit(client, "rate", "rps", "burst", "1.2.3.4", 1, 1)
-	if err == nil || ok {
-		t.Fatalf("期望 redis 错误，实际为 ok=%v err=%v", ok, err)
-	}
-}
-
-// 测试内容：验证 Redis 不可用时间隔限流返回错误。
-func TestAllowByRedisInterval_UnavailableRedisReturnsError(t *testing.T) {
-	client := redis.NewClient(&redis.Options{
-		Addr:        "127.0.0.1:1",
-		DialTimeout: 50 * time.Millisecond,
-	})
-	defer func() { _ = client.Close() }()
-
-	ok, err := ratelimit.AllowByRedisInterval(client, "interval", "1.2.3.4", 2*time.Second)
-	if err == nil || ok {
-		t.Fatalf("期望 redis 错误，实际为 ok=%v err=%v", ok, err)
 	}
 }

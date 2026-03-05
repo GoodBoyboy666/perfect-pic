@@ -9,6 +9,7 @@ import (
 )
 
 type Config struct {
+	Enable   bool
 	Addr     string
 	Password string
 	DB       int
@@ -16,6 +17,10 @@ type Config struct {
 
 // NewRedisClient 初始化 Redis 客户端；当未启用或不可用时返回 nil。
 func NewRedisClient(cfg *Config) *redis.Client {
+
+	if !cfg.Enable {
+		return nil
+	}
 
 	client := redis.NewClient(&redis.Options{
 		Addr:     cfg.Addr,

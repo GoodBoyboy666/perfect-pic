@@ -26,12 +26,6 @@ func NewRateLimitMiddleware(
 	tokenBucketLimiter *ratelimit.TokenBucketLimiter,
 	intervalLimiter *ratelimit.IntervalLimiter,
 ) *RateLimitMiddleware {
-	if tokenBucketLimiter == nil {
-		tokenBucketLimiter = ratelimit.NewTokenBucketLimiter(nil)
-	}
-	if intervalLimiter == nil {
-		intervalLimiter = ratelimit.NewIntervalLimiter(nil)
-	}
 	return &RateLimitMiddleware{
 		dbConfig:           dbConfig,
 		tokenBucketLimiter: tokenBucketLimiter,

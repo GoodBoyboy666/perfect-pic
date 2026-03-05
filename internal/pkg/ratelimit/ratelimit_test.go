@@ -8,42 +8,46 @@ import (
 )
 
 func TestBuildRedisKey_DefaultAndParts(t *testing.T) {
-	if got := buildRedisKey(); got != "perfect_pic" {
+	base := NewBaseRateLimiter(nil, &Config{})
+	if got := base.buildRedisKey(); got != "perfect_pic" {
 		t.Fatalf("unexpected key: %q", got)
 	}
-	if got := buildRedisKey("a", "b"); got != "perfect_pic:a:b" {
+	if got := base.buildRedisKey("a", "b"); got != "perfect_pic:a:b" {
 		t.Fatalf("unexpected key with parts: %q", got)
 	}
 }
 
 func TestAllowByRedisRateLimit_DisabledReturnsOK(t *testing.T) {
-	ok, err := AllowByRedisRateLimit(nil, "rate", "rps", "burst", "1.2.3.4", 0, 1)
+	l := NewTokenBucketLimiter(NewBaseRateLimiter(nil, &Config{}))
+	ok, err := l.allowByRedisRateLimit(nil, "rate", "rps", "burst", "1.2.3.4", 0, 1)
 	if err != nil || !ok {
 		t.Fatalf("expected ok when rps disabled, ok=%v err=%v", ok, err)
 	}
 
-	ok, err = AllowByRedisRateLimit(nil, "rate", "rps", "burst", "1.2.3.4", 1, 0)
+	ok, err = l.allowByRedisRateLimit(nil, "rate", "rps", "burst", "1.2.3.4", 1, 0)
 	if err != nil || !ok {
 		t.Fatalf("expected ok when burst disabled, ok=%v err=%v", ok, err)
 	}
 }
 
 func TestAllowByRedisRateLimit_NilClientWhenEnabledReturnsError(t *testing.T) {
-	ok, err := AllowByRedisRateLimit(nil, "rate", "rps", "burst", "1.2.3.4", 1, 1)
+	l := NewTokenBucketLimiter(NewBaseRateLimiter(nil, &Config{}))
+	ok, err := l.allowByRedisRateLimit(nil, "rate", "rps", "burst", "1.2.3.4", 1, 1)
 	if err == nil || ok {
 		t.Fatalf("expected nil-client error when enabled, ok=%v err=%v", ok, err)
 	}
 }
 
 func TestAllowByRedisInterval_NilClientReturnsError(t *testing.T) {
-	ok, err := AllowByRedisInterval(nil, "interval", "1.2.3.4", time.Second)
+	l := NewIntervalLimiter(NewBaseRateLimiter(nil, &Config{}))
+	ok, err := l.allowByRedisInterval(nil, "interval", "1.2.3.4", time.Second)
 	if err == nil || ok {
 		t.Fatalf("expected nil-client error, ok=%v err=%v", ok, err)
 	}
 }
 
 func TestTokenBucketLimiter_LocalAllowsAndBlocks(t *testing.T) {
-	l := NewTokenBucketLimiter(nil)
+	l := NewTokenBucketLimiter(NewBaseRateLimiter(nil, &Config{}))
 
 	if ok := l.Allow("1.2.3.4", "rate", "auth_rps", "auth_burst", 0, 1); !ok {
 		t.Fatalf("expected first request allowed")
@@ -54,7 +58,7 @@ func TestTokenBucketLimiter_LocalAllowsAndBlocks(t *testing.T) {
 }
 
 func TestTokenBucketLimiter_ScopeIsolation(t *testing.T) {
-	l := NewTokenBucketLimiter(nil)
+	l := NewTokenBucketLimiter(NewBaseRateLimiter(nil, &Config{}))
 
 	if ok := l.Allow("1.2.3.4", "rate", "a_rps", "a_burst", 0, 1); !ok {
 		t.Fatalf("expected first scope request allowed")
@@ -65,7 +69,7 @@ func TestTokenBucketLimiter_ScopeIsolation(t *testing.T) {
 }
 
 func TestIntervalLimiter_Local(t *testing.T) {
-	l := NewIntervalLimiter(nil)
+	l := NewIntervalLimiter(NewBaseRateLimiter(nil, &Config{}))
 	interval := 30 * time.Millisecond
 
 	if ok := l.Allow("1.2.3.4", "password_reset", interval); !ok {
@@ -82,7 +86,7 @@ func TestIntervalLimiter_Local(t *testing.T) {
 }
 
 func TestIntervalLimiter_NamespaceIsolation(t *testing.T) {
-	l := NewIntervalLimiter(nil)
+	l := NewIntervalLimiter(NewBaseRateLimiter(nil, &Config{}))
 	interval := 50 * time.Millisecond
 
 	if ok := l.Allow("1.2.3.4", "password_reset", interval); !ok {
@@ -94,26 +98,28 @@ func TestIntervalLimiter_NamespaceIsolation(t *testing.T) {
 }
 
 func TestAllowByRedisRateLimit_UnavailableRedisReturnsError(t *testing.T) {
+	l := NewTokenBucketLimiter(NewBaseRateLimiter(nil, &Config{}))
 	client := redis.NewClient(&redis.Options{
 		Addr:        "127.0.0.1:1",
 		DialTimeout: 50 * time.Millisecond,
 	})
 	defer func() { _ = client.Close() }()
 
-	ok, err := AllowByRedisRateLimit(client, "rate", "rps", "burst", "1.2.3.4", 1, 1)
+	ok, err := l.allowByRedisRateLimit(client, "rate", "rps", "burst", "1.2.3.4", 1, 1)
 	if err == nil || ok {
 		t.Fatalf("expected redis unavailable error, ok=%v err=%v", ok, err)
 	}
 }
 
 func TestAllowByRedisInterval_UnavailableRedisReturnsError(t *testing.T) {
+	l := NewIntervalLimiter(NewBaseRateLimiter(nil, &Config{}))
 	client := redis.NewClient(&redis.Options{
 		Addr:        "127.0.0.1:1",
 		DialTimeout: 50 * time.Millisecond,
 	})
 	defer func() { _ = client.Close() }()
 
-	ok, err := AllowByRedisInterval(client, "interval", "1.2.3.4", time.Second)
+	ok, err := l.allowByRedisInterval(client, "interval", "1.2.3.4", time.Second)
 	if err == nil || ok {
 		t.Fatalf("expected redis unavailable error, ok=%v err=%v", ok, err)
 	}

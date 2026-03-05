@@ -4,6 +4,7 @@ import (
 	"perfect-pic-server/internal/pkg/cache"
 	"perfect-pic-server/internal/pkg/database"
 	jwtpkg "perfect-pic-server/internal/pkg/jwt"
+	"perfect-pic-server/internal/pkg/ratelimit"
 	redispkg "perfect-pic-server/internal/pkg/redis"
 	"time"
 )
@@ -22,6 +23,7 @@ func NewCacheConfig(cfg *Config) *cache.Config {
 
 func NewRedisClientConfig(cfg *Config) *redispkg.Config {
 	return &redispkg.Config{
+		Enable:   cfg.Redis.Enabled,
 		Addr:     cfg.Redis.Addr,
 		Password: cfg.Redis.Password,
 		DB:       cfg.Redis.DB,
@@ -45,5 +47,11 @@ func NewDBConnectionConfig(cfg *Config) *database.DbConnectionConfig {
 		Password: cfg.Database.Password,
 		Name:     cfg.Database.Name,
 		SSL:      cfg.Database.SSL,
+	}
+}
+
+func NewRateLimiterConfig(cfg *Config) *ratelimit.Config {
+	return &ratelimit.Config{
+		RedisPrefix: cfg.Redis.Prefix,
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/wire"
 	"github.com/redis/go-redis/v9"
 	"golang.org/x/time/rate"
 )
@@ -37,30 +38,47 @@ type redisFallbackLogState struct {
 	lastWarnAt time.Time
 }
 
+type Config struct {
+	RedisPrefix string
+}
+
 type TokenBucketLimiter struct {
-	local       *ipRateLimiter
-	once        sync.Once
-	redisClient *redis.Client
+	local           *ipRateLimiter
+	once            sync.Once
+	baseRateLimiter *BaseRateLimiter
 }
 
 type IntervalLimiter struct {
-	requestTimes sync.Map
-	cleanupOnce  sync.Once
+	requestTimes    sync.Map
+	cleanupOnce     sync.Once
+	baseRateLimiter *BaseRateLimiter
+}
 
+type BaseRateLimiter struct {
 	redisClient *redis.Client
+	cfg         *Config
 }
 
 var redisFallbackLogStates sync.Map
 
-func NewTokenBucketLimiter(redisClient *redis.Client) *TokenBucketLimiter {
-	return &TokenBucketLimiter{redisClient: redisClient}
+func NewTokenBucketLimiter(baseRateLimiter *BaseRateLimiter) *TokenBucketLimiter {
+	return &TokenBucketLimiter{baseRateLimiter: baseRateLimiter}
 }
 
-func NewIntervalLimiter(redisClient *redis.Client) *IntervalLimiter {
+func NewIntervalLimiter(baseRateLimiter *BaseRateLimiter) *IntervalLimiter {
 	return &IntervalLimiter{
-		redisClient: redisClient,
+		baseRateLimiter: baseRateLimiter,
 	}
 }
+
+func NewBaseRateLimiter(redisClient *redis.Client, cfg *Config) *BaseRateLimiter {
+	return &BaseRateLimiter{
+		redisClient: redisClient,
+		cfg:         cfg,
+	}
+}
+
+var RateLimiter = wire.NewSet(NewTokenBucketLimiter, NewIntervalLimiter, NewBaseRateLimiter)
 
 func (l *TokenBucketLimiter) Allow(
 	ip, namespace, rpsKey, burstKey string,
@@ -75,8 +93,8 @@ func (l *TokenBucketLimiter) Allow(
 		l.local = newIPRateLimiter(rate.Limit(rps), burst)
 	})
 
-	if l.redisClient != nil {
-		allowed, err := AllowByRedisRateLimit(l.redisClient, namespace, rpsKey, burstKey, ip, rps, burst)
+	if l.baseRateLimiter.redisClient != nil {
+		allowed, err := l.allowByRedisRateLimit(l.baseRateLimiter.redisClient, namespace, rpsKey, burstKey, ip, rps, burst)
 		if err == nil {
 			logRedisFallbackRecovered("令牌桶限流")
 			return allowed
@@ -106,8 +124,8 @@ func (l *IntervalLimiter) Allow(ip, namespace string, interval time.Duration) bo
 
 	l.cleanupOnce.Do(l.startCleanupLoop)
 
-	if l.redisClient != nil {
-		ok, err := AllowByRedisInterval(l.redisClient, namespace, ip, interval)
+	if l.baseRateLimiter.redisClient != nil {
+		ok, err := l.allowByRedisInterval(l.baseRateLimiter.redisClient, namespace, ip, interval)
 		if err == nil {
 			logRedisFallbackRecovered("间隔限流")
 			return ok
@@ -151,7 +169,7 @@ func (l *IntervalLimiter) startCleanupLoop() {
 	}()
 }
 
-func AllowByRedisInterval(client *redis.Client, namespace, ip string, interval time.Duration) (bool, error) {
+func (l *IntervalLimiter) allowByRedisInterval(client *redis.Client, namespace, ip string, interval time.Duration) (bool, error) {
 	if client == nil {
 		return false, errors.New("redis client is nil")
 	}
@@ -159,7 +177,7 @@ func AllowByRedisInterval(client *redis.Client, namespace, ip string, interval t
 	ctx, cancel := context.WithTimeout(context.Background(), redisOpTimeout)
 	defer cancel()
 
-	key := buildRedisKey("middleware", namespace, ip)
+	key := l.baseRateLimiter.buildRedisKey("middleware", namespace, ip)
 	result, err := client.SetArgs(ctx, key, "1", redis.SetArgs{
 		Mode: "NX",
 		TTL:  interval,
@@ -174,7 +192,7 @@ func AllowByRedisInterval(client *redis.Client, namespace, ip string, interval t
 	return result == "OK", nil
 }
 
-func AllowByRedisRateLimit(
+func (l *TokenBucketLimiter) allowByRedisRateLimit(
 	client *redis.Client,
 	namespace, rpsKey, burstKey, ip string,
 	rps float64,
@@ -200,7 +218,7 @@ func AllowByRedisRateLimit(
 	}
 
 	bucket := now / window
-	key := buildRedisKey("middleware", namespace, rpsKey, burstKey, ip, strconv.FormatInt(bucket, 10))
+	key := l.baseRateLimiter.buildRedisKey("middleware", namespace, rpsKey, burstKey, ip, strconv.FormatInt(bucket, 10))
 	count, err := client.Incr(ctx, key).Result()
 	if err != nil {
 		return false, err
@@ -312,12 +330,16 @@ func logRedisFallbackRecovered(scope string) {
 	log.Printf("✅ Redis %s 已恢复，切回Redis 限流", scope)
 }
 
-func buildRedisKey(parts ...string) string {
-	if len(parts) == 0 {
+func (b *BaseRateLimiter) buildRedisKey(parts ...string) string {
+	prefix := b.cfg.RedisPrefix
+	if len(parts) == 0 && prefix == "" {
 		return defaultRedisKeyPrefix
 	}
 
 	key := defaultRedisKeyPrefix
+	if prefix != "" {
+		key = prefix
+	}
 	for _, part := range parts {
 		key += ":" + part
 	}

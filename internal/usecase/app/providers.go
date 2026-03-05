@@ -21,8 +21,6 @@ type UserUseCase struct {
 	emailService *service.EmailService
 	dbConfig     *config.DBConfig
 }
-
-type AvatarPath string
 type ImageUseCase struct {
 	imageService *service.ImageService
 	userService  *service.UserService
