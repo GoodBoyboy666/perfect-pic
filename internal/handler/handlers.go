@@ -33,10 +33,11 @@ type ImageHandler struct {
 }
 
 type SystemHandler struct {
-	initService *service.InitService
-	statUseCase *admin.StatUseCase
-	dbConfig    *config.DBConfig
-	userService *service.UserService
+	initService  *service.InitService
+	statUseCase  *admin.StatUseCase
+	dbConfig     *config.DBConfig
+	staticConfig *config.Config
+	userService  *service.UserService
 }
 
 type SettingsHandler struct {
@@ -92,12 +93,14 @@ func NewSystemHandler(
 	initService *service.InitService,
 	statUseCase *admin.StatUseCase,
 	dbConfig *config.DBConfig,
+	staticConfig *config.Config,
 	userService *service.UserService) *SystemHandler {
 	return &SystemHandler{
-		initService: initService,
-		statUseCase: statUseCase,
-		dbConfig:    dbConfig,
-		userService: userService,
+		initService:  initService,
+		statUseCase:  statUseCase,
+		dbConfig:     dbConfig,
+		staticConfig: staticConfig,
+		userService:  userService,
 	}
 }
 

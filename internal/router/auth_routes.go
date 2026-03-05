@@ -1,7 +1,6 @@
 package router
 
 import (
-	"perfect-pic-server/internal/config"
 	"perfect-pic-server/internal/consts"
 	"perfect-pic-server/internal/handler"
 	"perfect-pic-server/internal/middleware"
@@ -9,8 +8,14 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func registerAuthRoutes(api *gin.RouterGroup, authLimiter gin.HandlerFunc, h *handler.AuthHandler, dbConfig *config.DBConfig) {
-	bodyLimit := middleware.BodyLimitMiddleware(dbConfig)
+func registerAuthRoutes(
+	api *gin.RouterGroup,
+	authLimiter gin.HandlerFunc,
+	h *handler.AuthHandler,
+	rateLimitMiddleware *middleware.RateLimitMiddleware,
+	bodyLimitMiddleware *middleware.BodyLimitMiddleware,
+) {
+	bodyLimit := bodyLimitMiddleware.BodyLimitMiddleware()
 
 	api.POST("/login", bodyLimit, authLimiter, h.Login)
 	api.POST("/register", bodyLimit, authLimiter, h.Register)
@@ -21,7 +26,7 @@ func registerAuthRoutes(api *gin.RouterGroup, authLimiter gin.HandlerFunc, h *ha
 	api.POST("/auth/email-change-verify", bodyLimit, h.EmailChangeVerify)
 
 	// 重置密码请求间隔：读取配置（秒）
-	resetLimiter := middleware.IntervalRateMiddleware(dbConfig, consts.ConfigRateLimitPasswordResetIntervalSeconds)
+	resetLimiter := rateLimitMiddleware.IntervalRate(consts.ConfigRateLimitPasswordResetIntervalSeconds)
 	api.POST("/auth/password/reset/request", bodyLimit, resetLimiter, h.RequestPasswordReset)
 	api.POST("/auth/password/reset", bodyLimit, h.ResetPassword)
 

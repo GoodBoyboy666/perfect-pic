@@ -8,11 +8,11 @@ import (
 	"os"
 	"path/filepath"
 	commonpkg "perfect-pic-server/internal/common"
-	"perfect-pic-server/internal/config"
 	"perfect-pic-server/internal/consts"
 	moduledto "perfect-pic-server/internal/dto"
 	"perfect-pic-server/internal/model"
-	"perfect-pic-server/internal/utils"
+	"perfect-pic-server/internal/pkg/pathpkg"
+	"perfect-pic-server/internal/pkg/validator"
 	"strings"
 
 	"gorm.io/gorm"
@@ -55,7 +55,7 @@ func (s *ImageService) ValidateImageFile(file *multipart.FileHeader) (bool, stri
 	}
 	defer func() { _ = src.Close() }()
 
-	if valid, msg := utils.ValidateImageContent(src, ext); !valid {
+	if valid, msg := validator.ValidateImageContent(src, ext); !valid {
 		return false, ext, commonpkg.NewValidationError(msg)
 	}
 
@@ -64,7 +64,7 @@ func (s *ImageService) ValidateImageFile(file *multipart.FileHeader) (bool, stri
 
 // DeleteImage 删除图片文件和数据库记录
 func (s *ImageService) DeleteImage(image *model.Image) error {
-	cfg := config.Get()
+	cfg := s.staticConfig
 	uploadRoot := cfg.Upload.Path
 	if uploadRoot == "" {
 		uploadRoot = "uploads/imgs"
@@ -74,13 +74,13 @@ func (s *ImageService) DeleteImage(image *model.Image) error {
 		return commonpkg.NewInternalError("系统错误: 上传目录解析失败")
 	}
 	// 删除前先校验上传根目录节点本身，避免根目录被替换为符号链接。
-	if err := utils.EnsurePathNotSymlink(uploadRootAbs); err != nil {
+	if err := pathpkg.EnsurePathNotSymlink(uploadRootAbs); err != nil {
 		log.Printf("DeleteImage upload root security check failed: %v\n", err)
 		return commonpkg.NewInternalError("系统错误: 上传目录存在符号链接风险")
 	}
 
 	// 拼接完整物理路径
-	fullPath, err := utils.SecureJoin(uploadRootAbs, image.Path)
+	fullPath, err := pathpkg.SecureJoin(uploadRootAbs, image.Path)
 	if err != nil {
 		log.Printf("DeleteImage secure path error: %v\n", err)
 		return commonpkg.NewInternalError("系统错误: 非法文件路径")
@@ -113,8 +113,7 @@ func (s *ImageService) BatchDeleteImages(images []model.Image) error {
 	var imageIDs []uint
 	var pathsToDelete []string
 
-	cfg := config.Get()
-	uploadRoot := cfg.Upload.Path
+	uploadRoot := s.staticConfig.Upload.Path
 	if uploadRoot == "" {
 		uploadRoot = "uploads/imgs"
 	}
@@ -123,7 +122,7 @@ func (s *ImageService) BatchDeleteImages(images []model.Image) error {
 		return commonpkg.NewInternalError("系统错误: 上传目录解析失败")
 	}
 	// 批量删除前先校验上传根目录节点本身，避免根目录被替换为符号链接。
-	if err := utils.EnsurePathNotSymlink(uploadRootAbs); err != nil {
+	if err := pathpkg.EnsurePathNotSymlink(uploadRootAbs); err != nil {
 		log.Printf("BatchDeleteImages upload root security check failed: %v\n", err)
 		return commonpkg.NewInternalError("系统错误: 上传目录存在符号链接风险")
 	}
@@ -131,7 +130,7 @@ func (s *ImageService) BatchDeleteImages(images []model.Image) error {
 	for _, img := range images {
 		userSizeMap[img.UserID] += img.Size
 		imageIDs = append(imageIDs, img.ID)
-		fullPath, secureErr := utils.SecureJoin(uploadRootAbs, img.Path)
+		fullPath, secureErr := pathpkg.SecureJoin(uploadRootAbs, img.Path)
 		if secureErr != nil {
 			log.Printf("BatchDeleteImages secure path error: %v\n", secureErr)
 			continue
@@ -209,11 +208,10 @@ func (s *ImageService) GetImagesByIDsForUser(ids []uint, userID uint) ([]model.I
 //
 //nolint:gocyclo
 func (s *ImageService) DeleteUserFiles(userID uint) error {
-	cfg := config.Get()
 
 	// 1. 删除头像目录
 	// 头像存储结构: data/avatars/{userID}/filename
-	avatarRoot := cfg.Upload.AvatarPath
+	avatarRoot := s.staticConfig.Upload.AvatarPath
 	if avatarRoot == "" {
 		avatarRoot = "uploads/avatars"
 	}
@@ -222,16 +220,16 @@ func (s *ImageService) DeleteUserFiles(userID uint) error {
 		return fmt.Errorf("failed to resolve avatar root: %w", err)
 	}
 	// 先校验头像根目录节点本身，避免根目录直接是符号链接。
-	if err := utils.EnsurePathNotSymlink(avatarRootAbs); err != nil {
+	if err := pathpkg.EnsurePathNotSymlink(avatarRootAbs); err != nil {
 		return fmt.Errorf("avatar root symlink risk: %w", err)
 	}
 
-	userAvatarDir, err := utils.SecureJoin(avatarRootAbs, fmt.Sprintf("%d", userID))
+	userAvatarDir, err := pathpkg.SecureJoin(avatarRootAbs, fmt.Sprintf("%d", userID))
 	if err != nil {
 		return fmt.Errorf("failed to build avatar dir: %w", err)
 	}
 	// 在执行 RemoveAll 前再做一次链路检查，确保目标目录链路未被并发替换为符号链接。
-	if err := utils.EnsureNoSymlinkBetween(avatarRootAbs, userAvatarDir); err != nil {
+	if err := pathpkg.EnsureNoSymlinkBetween(avatarRootAbs, userAvatarDir); err != nil {
 		return fmt.Errorf("avatar dir symlink risk: %w", err)
 	}
 
@@ -248,7 +246,7 @@ func (s *ImageService) DeleteUserFiles(userID uint) error {
 		return fmt.Errorf("failed to retrieve user images: %w", err)
 	}
 
-	uploadRoot := cfg.Upload.Path
+	uploadRoot := s.staticConfig.Upload.Path
 	if uploadRoot == "" {
 		uploadRoot = "uploads/imgs"
 	}
@@ -257,14 +255,14 @@ func (s *ImageService) DeleteUserFiles(userID uint) error {
 		return fmt.Errorf("failed to resolve upload root: %w", err)
 	}
 	// 先校验上传根目录节点本身，避免根目录直接是符号链接。
-	if err := utils.EnsurePathNotSymlink(uploadRootAbs); err != nil {
+	if err := pathpkg.EnsurePathNotSymlink(uploadRootAbs); err != nil {
 		return fmt.Errorf("upload root symlink risk: %w", err)
 	}
 
 	for _, img := range images {
 		// 转换路径分隔符以适配当前系统 (DB中存储的是 web 格式 '/')
 		localPath := filepath.FromSlash(img.Path)
-		fullPath, secureErr := utils.SecureJoin(uploadRootAbs, localPath)
+		fullPath, secureErr := pathpkg.SecureJoin(uploadRootAbs, localPath)
 		if secureErr != nil {
 			log.Printf("Warning: Skip unsafe image path for user %d (%s): %v\n", userID, img.Path, secureErr)
 			continue

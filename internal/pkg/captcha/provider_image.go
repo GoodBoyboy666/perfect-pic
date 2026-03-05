@@ -1,6 +1,10 @@
-package utils
+package captcha
 
-import "github.com/mojocn/base64Captcha"
+import (
+	"strings"
+
+	"github.com/mojocn/base64Captcha"
+)
 
 var store = base64Captcha.DefaultMemStore
 
@@ -18,8 +22,20 @@ func MakeCaptcha() (id, b64s string, answer string, err error) {
 	return c.Generate()
 }
 
-//校验验证码
-
+// VerifyCaptcha 校验图形验证码并在校验后清除。
 func VerifyCaptcha(id string, answer string) bool {
 	return store.Verify(id, answer, true)
+}
+
+// VerifyImageCaptcha 校验图形验证码。
+func VerifyImageCaptcha(captchaID, captchaAnswer string) (bool, string) {
+	if strings.TrimSpace(captchaID) == "" || strings.TrimSpace(captchaAnswer) == "" {
+		return false, "验证码不能为空"
+	}
+
+	if !VerifyCaptcha(captchaID, captchaAnswer) {
+		return false, "验证码错误或已过期"
+	}
+
+	return true, ""
 }

@@ -1,14 +1,11 @@
 package service
 
 import (
-	"context"
-	"errors"
 	commonpkg "perfect-pic-server/internal/common"
 	moduledto "perfect-pic-server/internal/dto"
 	"perfect-pic-server/internal/model"
-	"perfect-pic-server/internal/utils"
+	"perfect-pic-server/internal/pkg/validator"
 
-	"github.com/redis/go-redis/v9"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -33,11 +30,11 @@ func resolveAdminUserSortOrder(order string) string {
 
 // validateAdminCreateUserInput 校验管理员创建用户输入是否合法。
 func (s *UserService) validateAdminCreateUserInput(input moduledto.AdminCreateUserRequest) error {
-	if ok, msg := utils.ValidatePassword(input.Password); !ok {
+	if ok, msg := validator.ValidatePassword(input.Password); !ok {
 		return commonpkg.NewValidationError(msg)
 	}
 	// 管理员后台创建用户允许使用保留用户名（与后台修改用户名规则一致）。
-	if ok, msg := utils.ValidateUsernameAllowReserved(input.Username); !ok {
+	if ok, msg := validator.ValidateUsernameAllowReserved(input.Username); !ok {
 		return commonpkg.NewValidationError(msg)
 	}
 
@@ -50,7 +47,7 @@ func (s *UserService) validateAdminCreateUserInput(input moduledto.AdminCreateUs
 	}
 
 	if input.Email != nil && *input.Email != "" {
-		if ok, msg := utils.ValidateEmail(*input.Email); !ok {
+		if ok, msg := validator.ValidateEmail(*input.Email); !ok {
 			return commonpkg.NewValidationError(msg)
 		}
 		emailTaken, err := s.IsEmailTaken(*input.Email, nil, true)
@@ -111,7 +108,7 @@ func (s *UserService) prepareAdminUsernameUpdate(userID uint, username *string, 
 	if username == nil || *username == "" {
 		return nil
 	}
-	if ok, msg := utils.ValidateUsernameAllowReserved(*username); !ok {
+	if ok, msg := validator.ValidateUsernameAllowReserved(*username); !ok {
 		return commonpkg.NewValidationError(msg)
 	}
 
@@ -133,7 +130,7 @@ func (s *UserService) prepareAdminPasswordUpdate(password *string, updates map[s
 	if password == nil || *password == "" {
 		return nil
 	}
-	if ok, msg := utils.ValidatePassword(*password); !ok {
+	if ok, msg := validator.ValidatePassword(*password); !ok {
 		return commonpkg.NewValidationError(msg)
 	}
 
@@ -151,7 +148,7 @@ func (s *UserService) prepareAdminEmailUpdate(userID uint, email *string, update
 	if email == nil || *email == "" {
 		return nil
 	}
-	if ok, msg := utils.ValidateEmail(*email); !ok {
+	if ok, msg := validator.ValidateEmail(*email); !ok {
 		return commonpkg.NewValidationError(msg)
 	}
 
@@ -201,59 +198,4 @@ func (s *UserService) prepareAdminStatusUpdate(status *int, updates map[string]i
 		return nil
 	}
 	return commonpkg.NewValidationError("无效的用户状态")
-}
-
-// verifyAndConsumeRedisTokenPair 使用 Redis WATCH/CAS 原子校验并消费 token 对。
-func verifyAndConsumeRedisTokenPair(
-	ctx context.Context,
-	redisClient *redis.Client,
-	tokenKey string,
-	userKey string,
-	expectedUserToken string,
-	expectedTokenValue string,
-) error {
-	var consumed bool
-	watchErr := redisClient.Watch(ctx, func(tx *redis.Tx) error {
-		currentUserToken, getErr := tx.Get(ctx, userKey).Result()
-		if getErr != nil {
-			if errors.Is(getErr, redis.Nil) {
-				return redis.TxFailedErr
-			}
-			return getErr
-		}
-		if currentUserToken != expectedUserToken {
-			return redis.TxFailedErr
-		}
-
-		currentTokenValue, tokenErr := tx.Get(ctx, tokenKey).Result()
-		if tokenErr != nil {
-			if errors.Is(tokenErr, redis.Nil) {
-				return redis.TxFailedErr
-			}
-			return tokenErr
-		}
-		if currentTokenValue != expectedTokenValue {
-			return redis.TxFailedErr
-		}
-
-		_, pipeErr := tx.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
-			pipe.Del(ctx, tokenKey)
-			pipe.Del(ctx, userKey)
-			return nil
-		})
-		if pipeErr != nil {
-			return pipeErr
-		}
-
-		consumed = true
-		return nil
-	}, userKey, tokenKey)
-
-	if watchErr == nil && consumed {
-		return nil
-	}
-	if errors.Is(watchErr, redis.TxFailedErr) || (!consumed && watchErr == nil) {
-		return errRedisTokenCASMismatch
-	}
-	return watchErr
 }

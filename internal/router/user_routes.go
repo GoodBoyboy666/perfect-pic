@@ -1,28 +1,33 @@
 package router
 
 import (
-	"perfect-pic-server/internal/config"
 	"perfect-pic-server/internal/consts"
 	"perfect-pic-server/internal/handler"
 	"perfect-pic-server/internal/middleware"
 
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 )
 
-func registerUserRoutes(api *gin.RouterGroup, userHandler *handler.UserHandler, imageHandler *handler.ImageHandler, dbConfig *config.DBConfig, gormDB *gorm.DB) {
+func registerUserRoutes(
+	api *gin.RouterGroup,
+	userHandler *handler.UserHandler,
+	imageHandler *handler.ImageHandler,
+	authMiddleware *middleware.AuthMiddleware,
+	bodyLimitMiddleware *middleware.BodyLimitMiddleware,
+	rateLimitMiddleware *middleware.RateLimitMiddleware,
+) {
 	userGroup := api.Group("/user")
-	userGroup.Use(middleware.JWTAuth())
-	userGroup.Use(middleware.UserStatusCheck(gormDB))
-	bodyLimit := middleware.BodyLimitMiddleware(dbConfig)
+	userGroup.Use(authMiddleware.JWTAuth())
+	userGroup.Use(authMiddleware.UserStatusCheck())
+	bodyLimit := bodyLimitMiddleware.BodyLimitMiddleware()
 
 	// 修改用户名请求间隔：读取配置（秒）
-	usernameLimiter := middleware.IntervalRateMiddleware(dbConfig, consts.ConfigRateLimitUsernameUpdateIntervalSeconds)
+	usernameLimiter := rateLimitMiddleware.IntervalRate(consts.ConfigRateLimitUsernameUpdateIntervalSeconds)
 	// 修改邮箱请求间隔：读取配置（秒）
-	emailLimiter := middleware.IntervalRateMiddleware(dbConfig, consts.ConfigRateLimitEmailUpdateIntervalSeconds)
+	emailLimiter := rateLimitMiddleware.IntervalRate(consts.ConfigRateLimitEmailUpdateIntervalSeconds)
 	// 上传限流：读取配置
-	uploadLimiter := middleware.RateLimitMiddleware(dbConfig, consts.ConfigRateLimitUploadRPS, consts.ConfigRateLimitUploadBurst)
-	uploadBodyLimit := middleware.UploadBodyLimitMiddleware(dbConfig)
+	uploadLimiter := rateLimitMiddleware.RateLimit(consts.ConfigRateLimitUploadRPS, consts.ConfigRateLimitUploadBurst)
+	uploadBodyLimit := bodyLimitMiddleware.UploadBodyLimitMiddleware()
 
 	userGroup.GET("/profile", userHandler.GetSelfInfo)
 	userGroup.GET("/passkeys", userHandler.ListSelfPasskeys)

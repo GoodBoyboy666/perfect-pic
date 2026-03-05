@@ -5,8 +5,14 @@ package di
 
 import (
 	"perfect-pic-server/internal/config"
-	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/handler"
+	"perfect-pic-server/internal/middleware"
+	"perfect-pic-server/internal/pkg/cache"
+	"perfect-pic-server/internal/pkg/database"
+	pkgmail "perfect-pic-server/internal/pkg/email"
+	jwtpkg "perfect-pic-server/internal/pkg/jwt"
+	"perfect-pic-server/internal/pkg/ratelimit"
+	"perfect-pic-server/internal/pkg/redis"
 	"perfect-pic-server/internal/repository"
 	"perfect-pic-server/internal/router"
 	"perfect-pic-server/internal/service"
@@ -18,7 +24,17 @@ import (
 
 func InitializeApplication() (*Application, error) {
 	wire.Build(
-		db.NewGormDB,
+		config.NewStaticConfig,
+		config.NewRedisClientConfig,
+		config.NewJWTConfig,
+		config.NewCacheConfig,
+		config.NewDBConnectionConfig,
+		config.NewRateLimiterConfig,
+		database.NewGormDB,
+		redis.NewRedisClient,
+		jwtpkg.NewJWT,
+		cache.NewStore,
+		ratelimit.RateLimiter,
 		repository.NewUserRepository,
 		repository.NewImageRepository,
 		repository.NewSettingRepository,
@@ -31,6 +47,7 @@ func InitializeApplication() (*Application, error) {
 		service.NewAuthService,
 		service.NewEmailService,
 		service.NewCaptchaService,
+		pkgmail.NewMailer,
 		service.NewInitService,
 		service.NewPasskeyService,
 		admin.NewUserManageUseCase,
@@ -40,6 +57,11 @@ func InitializeApplication() (*Application, error) {
 		app.NewUserUseCase,
 		app.NewImageUseCase,
 		app.NewPasskeyUseCase,
+		middleware.NewAuthMiddleware,
+		middleware.NewRateLimitMiddleware,
+		middleware.NewBodyLimitConfig,
+		middleware.NewSecurityHeadersMiddleware,
+		middleware.NewStaticCacheMiddleware,
 		handler.NewAuthHandler,
 		handler.NewSystemHandler,
 		handler.NewSettingsHandler,

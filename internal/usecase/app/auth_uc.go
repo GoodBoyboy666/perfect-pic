@@ -6,8 +6,7 @@ import (
 	"perfect-pic-server/internal/common/httpx"
 	"perfect-pic-server/internal/consts"
 	"perfect-pic-server/internal/model"
-	"perfect-pic-server/internal/utils"
-	"time"
+	"perfect-pic-server/internal/pkg/validator"
 
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
@@ -36,15 +35,15 @@ func (c *AuthUseCase) RegisterUser(username, password, email string) error {
 		return httpx.NewAuthError(httpx.AuthErrorForbidden, "系统尚未初始化，请先完成初始化")
 	}
 
-	if ok, msg := utils.ValidatePassword(password); !ok {
+	if ok, msg := validator.ValidatePassword(password); !ok {
 		return httpx.NewAuthError(httpx.AuthErrorValidation, msg)
 	}
 
-	if ok, msg := utils.ValidateUsername(username); !ok {
+	if ok, msg := validator.ValidateUsername(username); !ok {
 		return httpx.NewAuthError(httpx.AuthErrorValidation, msg)
 	}
 
-	if ok, msg := utils.ValidateEmail(email); !ok {
+	if ok, msg := validator.ValidateEmail(email); !ok {
 		return httpx.NewAuthError(httpx.AuthErrorValidation, msg)
 	}
 
@@ -86,7 +85,7 @@ func (c *AuthUseCase) RegisterUser(username, password, email string) error {
 		return httpx.NewAuthError(httpx.AuthErrorInternal, "注册失败，请稍后重试")
 	}
 
-	verifyToken, err := utils.GenerateEmailToken(newUser.ID, newUser.Email, 30*time.Minute)
+	verifyToken, err := c.userService.GenerateEmailVerificationToken(newUser.ID, newUser.Email)
 	if err != nil {
 		return httpx.NewAuthError(httpx.AuthErrorInternal, "注册失败，请稍后重试")
 	}
@@ -112,16 +111,12 @@ func (c *AuthUseCase) RegisterUser(username, password, email string) error {
 // VerifyEmail 验证邮箱激活令牌。
 // 返回值第一个参数为 true 表示该邮箱已是验证状态。
 func (c *AuthUseCase) VerifyEmail(token string) (bool, error) {
-	claims, err := utils.ParseEmailToken(token)
-	if err != nil {
+	userID, tokenEmail, ok := c.userService.VerifyEmailVerificationToken(token)
+	if !ok {
 		return false, httpx.NewAuthError(httpx.AuthErrorValidation, "验证链接已失效或不正确")
 	}
 
-	if claims.Type != "email_verify" {
-		return false, httpx.NewAuthError(httpx.AuthErrorValidation, "无效的验证 Token 类型")
-	}
-
-	user, err := c.userStore.FindByID(claims.ID)
+	user, err := c.userStore.FindByID(userID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return false, httpx.NewAuthError(httpx.AuthErrorNotFound, "用户不存在")
@@ -129,7 +124,7 @@ func (c *AuthUseCase) VerifyEmail(token string) (bool, error) {
 		return false, httpx.NewAuthError(httpx.AuthErrorInternal, "验证失败，请稍后重试")
 	}
 
-	if user.Email != claims.Email {
+	if user.Email != tokenEmail {
 		return false, httpx.NewAuthError(httpx.AuthErrorValidation, "邮箱不匹配，请重新发起验证")
 	}
 
@@ -221,7 +216,7 @@ func (c *AuthUseCase) RequestPasswordReset(email string) error {
 
 // ResetPassword 使用重置令牌设置新密码。
 func (c *AuthUseCase) ResetPassword(token, newPassword string) error {
-	if ok, msg := utils.ValidatePassword(newPassword); !ok {
+	if ok, msg := validator.ValidatePassword(newPassword); !ok {
 		return httpx.NewAuthError(httpx.AuthErrorValidation, msg)
 	}
 

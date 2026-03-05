@@ -8,8 +8,14 @@ package di
 
 import (
 	"perfect-pic-server/internal/config"
-	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/handler"
+	"perfect-pic-server/internal/middleware"
+	"perfect-pic-server/internal/pkg/cache"
+	"perfect-pic-server/internal/pkg/database"
+	"perfect-pic-server/internal/pkg/email"
+	"perfect-pic-server/internal/pkg/jwt"
+	"perfect-pic-server/internal/pkg/ratelimit"
+	"perfect-pic-server/internal/pkg/redis"
 	"perfect-pic-server/internal/repository"
 	"perfect-pic-server/internal/router"
 	"perfect-pic-server/internal/service"
@@ -20,37 +26,55 @@ import (
 // Injectors from wire.go:
 
 func InitializeApplication() (*Application, error) {
-	gormDB, err := db.NewGormDB()
+	configConfig := config.NewStaticConfig()
+	jwtConfig := config.NewJWTConfig(configConfig)
+	jwtJWT := jwt.NewJWT(jwtConfig)
+	dbConnectionConfig := config.NewDBConnectionConfig(configConfig)
+	db, err := database.NewGormDB(dbConnectionConfig)
 	if err != nil {
 		return nil, err
 	}
-	settingStore := repository.NewSettingRepository(gormDB)
+	userStore := repository.NewUserRepository(db)
+	settingStore := repository.NewSettingRepository(db)
 	dbConfig := config.NewDBConfig(settingStore)
-	authService := service.NewAuthService(dbConfig)
+	redisConfig := config.NewRedisClientConfig(configConfig)
+	client := redis.NewRedisClient(redisConfig)
+	cacheConfig := config.NewCacheConfig(configConfig)
+	store := cache.NewStore(client, cacheConfig)
+	userService := service.NewUserService(userStore, dbConfig, store, jwtJWT)
+	authMiddleware := middleware.NewAuthMiddleware(jwtJWT, userService)
+	ratelimitConfig := config.NewRateLimiterConfig(configConfig)
+	baseRateLimiter := ratelimit.NewBaseRateLimiter(client, ratelimitConfig)
+	tokenBucketLimiter := ratelimit.NewTokenBucketLimiter(baseRateLimiter)
+	intervalLimiter := ratelimit.NewIntervalLimiter(baseRateLimiter)
+	rateLimitMiddleware := middleware.NewRateLimitMiddleware(dbConfig, tokenBucketLimiter, intervalLimiter)
+	bodyLimitMiddleware := middleware.NewBodyLimitConfig(dbConfig)
+	securityHeadersMiddleware := middleware.NewSecurityHeadersMiddleware(dbConfig)
+	authService := service.NewAuthService(dbConfig, jwtJWT)
 	captchaService := service.NewCaptchaService(dbConfig)
-	userStore := repository.NewUserRepository(gormDB)
-	userService := service.NewUserService(userStore, dbConfig)
-	emailService := service.NewEmailService(dbConfig)
-	systemStore := repository.NewSystemRepository(gormDB)
+	mailer := email.NewMailer()
+	emailService := service.NewEmailService(dbConfig, mailer, configConfig)
+	systemStore := repository.NewSystemRepository(db)
 	initService := service.NewInitService(systemStore, dbConfig)
 	authUseCase := app.NewAuthUseCase(authService, userStore, userService, emailService, initService, dbConfig)
-	passkeyStore := repository.NewPasskeyRepository(gormDB)
-	passkeyService := service.NewPasskeyService(passkeyStore, dbConfig)
+	passkeyStore := repository.NewPasskeyRepository(db)
+	passkeyService := service.NewPasskeyService(passkeyStore, dbConfig, store)
 	passkeyUseCase := app.NewPasskeyUseCase(passkeyService, passkeyStore, authService, userStore)
 	authHandler := handler.NewAuthHandler(authService, captchaService, authUseCase, initService, dbConfig, passkeyUseCase)
-	imageStore := repository.NewImageRepository(gormDB)
+	imageStore := repository.NewImageRepository(db)
 	statUseCase := admin.NewStatUseCase(imageStore, userStore)
-	systemHandler := handler.NewSystemHandler(initService, statUseCase, dbConfig, userService)
+	systemHandler := handler.NewSystemHandler(initService, statUseCase, dbConfig, configConfig, userService)
 	settingsService := service.NewSettingsService(settingStore, dbConfig)
 	settingsUseCase := admin.NewSettingsUseCase(emailService)
 	settingsHandler := handler.NewSettingsHandler(settingsService, settingsUseCase)
 	userUseCase := app.NewUserUseCase(userService, userStore, emailService, dbConfig)
-	imageService := service.NewImageService(imageStore, dbConfig)
+	imageService := service.NewImageService(imageStore, dbConfig, configConfig)
 	userManageUseCase := admin.NewUserManageUseCase(userService, imageService, passkeyService)
-	imageUseCase := app.NewImageUseCase(imageService, userService, userStore, dbConfig)
+	imageUseCase := app.NewImageUseCase(imageService, userService, userStore, configConfig, dbConfig)
 	userHandler := handler.NewUserHandler(userService, userUseCase, userManageUseCase, imageService, imageUseCase, authService, passkeyService, passkeyUseCase)
 	imageHandler := handler.NewImageHandler(imageService, imageUseCase)
-	routerRouter := router.NewRouter(authHandler, systemHandler, settingsHandler, userHandler, imageHandler, dbConfig, gormDB)
-	application := NewApplication(routerRouter, dbConfig, gormDB)
+	routerRouter := router.NewRouter(authMiddleware, rateLimitMiddleware, bodyLimitMiddleware, securityHeadersMiddleware, authHandler, systemHandler, settingsHandler, userHandler, imageHandler)
+	staticCacheMiddleware := middleware.NewStaticCacheMiddleware(dbConfig)
+	application := NewApplication(routerRouter, dbConfig, db, client, configConfig, staticCacheMiddleware)
 	return application, nil
 }

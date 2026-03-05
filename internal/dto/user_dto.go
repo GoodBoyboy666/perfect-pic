@@ -25,6 +25,11 @@ type EmailChangeRedisPayload struct {
 	NewEmail string `json:"new_email"`
 }
 
+type EmailVerifyRedisPayload struct {
+	UserID uint   `json:"user_id"`
+	Email  string `json:"email"`
+}
+
 type UserProfileResponse struct {
 	ID           uint   `json:"id"`
 	Username     string `json:"username"`

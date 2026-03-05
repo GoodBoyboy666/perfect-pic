@@ -2,35 +2,34 @@ package service
 
 import (
 	"perfect-pic-server/internal/config"
+	"perfect-pic-server/internal/pkg/cache"
+	"perfect-pic-server/internal/pkg/email"
+	"perfect-pic-server/internal/pkg/jwt"
 	repo "perfect-pic-server/internal/repository"
-	"sync"
 )
 
 type AuthService struct {
 	dbConfig *config.DBConfig
+	jwt      *jwt.JWT
 }
 
 type UserService struct {
 	userStore repo.UserStore
 	dbConfig  *config.DBConfig
-
-	passwordResetStore      sync.Map
-	passwordResetTokenStore sync.Map
-	emailChangeStore        sync.Map
-	emailChangeTokenStore   sync.Map
+	jwt       *jwt.JWT
+	cache     *cache.Store
 }
 
 type ImageService struct {
-	imageStore repo.ImageStore
-	dbConfig   *config.DBConfig
+	imageStore   repo.ImageStore
+	dbConfig     *config.DBConfig
+	staticConfig *config.Config
 }
 
 type EmailService struct {
-	dbConfig *config.DBConfig
-}
-
-type CaptchaService struct {
-	dbConfig *config.DBConfig
+	dbConfig     *config.DBConfig
+	staticConfig *config.Config
+	mailer       *email.Mailer
 }
 
 type InitService struct {
@@ -39,8 +38,9 @@ type InitService struct {
 }
 
 type PasskeyService struct {
-	dbConfig     *config.DBConfig
-	passkeyStore repo.PasskeyStore
+	dbConfig            *config.DBConfig
+	passkeyStore        repo.PasskeyStore
+	passkeySessionCache *cache.Store
 }
 
 type SettingsService struct {
@@ -48,34 +48,54 @@ type SettingsService struct {
 	dbConfig     *config.DBConfig
 }
 
-func NewAuthService(dbConfig *config.DBConfig) *AuthService {
-	return &AuthService{dbConfig: dbConfig}
+type CaptchaService struct {
+	dbConfig *config.DBConfig
 }
 
-func NewUserService(userStore repo.UserStore, dbConfig *config.DBConfig) *UserService {
-	return &UserService{userStore: userStore, dbConfig: dbConfig}
+func NewAuthService(dbConfig *config.DBConfig, jwt *jwt.JWT) *AuthService {
+	return &AuthService{
+		dbConfig: dbConfig,
+		jwt:      jwt,
+	}
 }
 
-func NewImageService(imageStore repo.ImageStore, dbConfig *config.DBConfig) *ImageService {
-	return &ImageService{imageStore: imageStore, dbConfig: dbConfig}
+func NewUserService(userStore repo.UserStore, dbConfig *config.DBConfig, cache *cache.Store, jwt *jwt.JWT) *UserService {
+	return &UserService{
+		userStore: userStore,
+		dbConfig:  dbConfig,
+		jwt:       jwt,
+		cache:     cache,
+	}
 }
 
-func NewEmailService(dbConfig *config.DBConfig) *EmailService {
-	return &EmailService{dbConfig: dbConfig}
+func NewImageService(imageStore repo.ImageStore, dbConfig *config.DBConfig, staticConfig *config.Config) *ImageService {
+	return &ImageService{imageStore: imageStore, dbConfig: dbConfig, staticConfig: staticConfig}
 }
 
-func NewCaptchaService(dbConfig *config.DBConfig) *CaptchaService {
-	return &CaptchaService{dbConfig: dbConfig}
+func NewEmailService(dbConfig *config.DBConfig, mailer *email.Mailer, staticConfig *config.Config) *EmailService {
+	return &EmailService{
+		dbConfig:     dbConfig,
+		staticConfig: staticConfig,
+		mailer:       mailer,
+	}
 }
 
 func NewInitService(systemStore repo.SystemStore, dbConfig *config.DBConfig) *InitService {
 	return &InitService{systemStore: systemStore, dbConfig: dbConfig}
 }
 
-func NewPasskeyService(passkeyStore repo.PasskeyStore, dbConfig *config.DBConfig) *PasskeyService {
-	return &PasskeyService{passkeyStore: passkeyStore, dbConfig: dbConfig}
+func NewPasskeyService(passkeyStore repo.PasskeyStore, dbConfig *config.DBConfig, cache *cache.Store) *PasskeyService {
+	return &PasskeyService{
+		passkeyStore:        passkeyStore,
+		dbConfig:            dbConfig,
+		passkeySessionCache: cache,
+	}
 }
 
 func NewSettingsService(settingStore repo.SettingStore, dbConfig *config.DBConfig) *SettingsService {
 	return &SettingsService{settingStore: settingStore, dbConfig: dbConfig}
+}
+
+func NewCaptchaService(dbConfig *config.DBConfig) *CaptchaService {
+	return &CaptchaService{dbConfig: dbConfig}
 }

@@ -6,8 +6,8 @@ import (
 	"perfect-pic-server/internal/consts"
 	moduledto "perfect-pic-server/internal/dto"
 	"perfect-pic-server/internal/model"
+	"perfect-pic-server/internal/pkg/validator"
 	systemrepo "perfect-pic-server/internal/repository"
-	"perfect-pic-server/internal/utils"
 	"strings"
 
 	"golang.org/x/crypto/bcrypt"
@@ -23,10 +23,10 @@ func (s *InitService) InitializeSystem(payload moduledto.InitRequest) error {
 	if s.IsSystemInitialized() {
 		return commonpkg.NewForbiddenError("已初始化，无法重复初始化")
 	}
-	if ok, msg := utils.ValidateUsernameAllowReserved(payload.Username); !ok {
+	if ok, msg := validator.ValidateUsernameAllowReserved(payload.Username); !ok {
 		return commonpkg.NewValidationError(msg)
 	}
-	if ok, msg := utils.ValidatePassword(payload.Password); !ok {
+	if ok, msg := validator.ValidatePassword(payload.Password); !ok {
 		return commonpkg.NewValidationError(msg)
 	}
 	if strings.TrimSpace(payload.SiteName) == "" {

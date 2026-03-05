@@ -1,12 +1,10 @@
 package router
 
 import (
-	"perfect-pic-server/internal/config"
 	"perfect-pic-server/internal/handler"
 	"perfect-pic-server/internal/middleware"
 
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 )
 
 func registerAdminRoutes(
@@ -15,15 +13,15 @@ func registerAdminRoutes(
 	settingsHandler *handler.SettingsHandler,
 	userHandler *handler.UserHandler,
 	imageHandler *handler.ImageHandler,
-	dbConfig *config.DBConfig,
-	gormDB *gorm.DB,
+	authMiddleware *middleware.AuthMiddleware,
+	bodyLimitMiddleware *middleware.BodyLimitMiddleware,
 ) {
 	adminGroup := api.Group("/admin")
-	adminGroup.Use(middleware.JWTAuth())
-	adminGroup.Use(middleware.UserStatusCheck(gormDB))
+	adminGroup.Use(authMiddleware.JWTAuth())
+	adminGroup.Use(authMiddleware.UserStatusCheck())
 	adminGroup.Use(middleware.AdminCheck())
-	bodyLimit := middleware.BodyLimitMiddleware(dbConfig)
-	uploadBodyLimit := middleware.UploadBodyLimitMiddleware(dbConfig)
+	bodyLimit := bodyLimitMiddleware.BodyLimitMiddleware()
+	uploadBodyLimit := bodyLimitMiddleware.UploadBodyLimitMiddleware()
 
 	adminGroup.GET("/stats", systemHandler.GetServerStats)
 

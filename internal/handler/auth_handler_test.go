@@ -5,12 +5,12 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"perfect-pic-server/internal/config"
+	"perfect-pic-server/internal/pkg/jwt"
 	"testing"
-	"time"
 
 	"perfect-pic-server/internal/consts"
 	"perfect-pic-server/internal/model"
-	"perfect-pic-server/internal/utils"
 
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
@@ -46,7 +46,8 @@ func TestLoginHandler_SuccessAndUnauthorized(t *testing.T) {
 	if okResp.Token == "" {
 		t.Fatalf("期望得到 token")
 	}
-	if _, err := utils.ParseLoginToken(okResp.Token); err != nil {
+	jwtService := jwt.NewJWT(config.NewJWTConfig(config.NewStaticConfig()))
+	if _, err := jwtService.ParseLoginToken(okResp.Token); err != nil {
 		t.Fatalf("令牌解析失败: %v", err)
 	}
 
@@ -103,9 +104,9 @@ func TestEmailVerifyHandler_OK(t *testing.T) {
 	u := model.User{Username: "alice", Password: string(hashed), Status: 1, Email: "a@example.com", EmailVerified: false}
 	_ = testGormDB.Create(&u).Error
 
-	token, err := utils.GenerateEmailToken(u.ID, u.Email, time.Hour)
+	token, err := testUserSvc.GenerateEmailVerificationToken(u.ID, u.Email)
 	if err != nil {
-		t.Fatalf("GenerateEmailToken: %v", err)
+		t.Fatalf("GenerateEmailVerificationToken: %v", err)
 	}
 
 	r := gin.New()

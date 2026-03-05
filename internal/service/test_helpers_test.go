@@ -1,13 +1,18 @@
 package service
 
 import (
+	"encoding/json"
 	"mime/multipart"
-	"sync"
+	"strconv"
 	"testing"
+	"time"
 
 	"perfect-pic-server/internal/config"
 	moduledto "perfect-pic-server/internal/dto"
 	"perfect-pic-server/internal/model"
+	"perfect-pic-server/internal/pkg/cache"
+	pkgmail "perfect-pic-server/internal/pkg/email"
+	jwtpkg "perfect-pic-server/internal/pkg/jwt"
 	"perfect-pic-server/internal/repository"
 	"perfect-pic-server/internal/testutils"
 
@@ -43,14 +48,17 @@ func setupTestDB(t *testing.T) *gorm.DB {
 	systemStore := repository.NewSystemRepository(gdb)
 	passkeyStore := repository.NewPasskeyRepository(gdb)
 	dbConfig := config.NewDBConfig(settingStore)
+	staticConfig := config.NewStaticConfig()
+	tokenService := jwtpkg.NewJWT(config.NewJWTConfig(staticConfig))
+	cacheStore := cache.NewStore(nil, config.NewCacheConfig(staticConfig))
 
-	authService := NewAuthService(dbConfig)
-	userService := NewUserService(userStore, dbConfig)
-	imageService := NewImageService(imageStore, dbConfig)
-	emailService := NewEmailService(dbConfig)
+	authService := NewAuthService(dbConfig, tokenService)
+	userService := NewUserService(userStore, dbConfig, cacheStore, tokenService)
+	imageService := NewImageService(imageStore, dbConfig, staticConfig)
+	emailService := NewEmailService(dbConfig, pkgmail.NewMailer(), staticConfig)
 	captchaService := NewCaptchaService(dbConfig)
 	initService := NewInitService(systemStore, dbConfig)
-	passkeyService := NewPasskeyService(passkeyStore, dbConfig)
+	passkeyService := NewPasskeyService(passkeyStore, dbConfig, cacheStore)
 
 	testService = &Service{
 		dbConfig:       dbConfig,
@@ -230,21 +238,48 @@ func resetPasswordResetStore() {
 	if testService == nil || testService.userService == nil {
 		return
 	}
-	clearSyncMap(&testService.userService.passwordResetStore)
-	clearSyncMap(&testService.userService.passwordResetTokenStore)
+	testService.userService.resetTokenCachesForTest()
 }
 
 func resetEmailChangeStore() {
 	if testService == nil || testService.userService == nil {
 		return
 	}
-	clearSyncMap(&testService.userService.emailChangeStore)
-	clearSyncMap(&testService.userService.emailChangeTokenStore)
+	testService.userService.resetTokenCachesForTest()
 }
 
-func clearSyncMap(store *sync.Map) {
-	store.Range(func(key, _ interface{}) bool {
-		store.Delete(key)
-		return true
+func ttlForLocalToken(expiresAt time.Time) time.Duration {
+	ttl := time.Until(expiresAt)
+	if ttl <= 0 {
+		return -time.Nanosecond
+	}
+	return ttl
+}
+
+func (s *UserService) resetTokenCachesForTest() {
+	if s.cache != nil {
+		s.cache.ClearLocal()
+	}
+}
+
+func (s *UserService) putEmailChangeTokenLocalForTest(token moduledto.EmailChangeToken) {
+	if s.cache == nil {
+		return
+	}
+
+	payload, err := json.Marshal(moduledto.EmailChangeRedisPayload{
+		UserID:   token.UserID,
+		OldEmail: token.OldEmail,
+		NewEmail: token.NewEmail,
 	})
+	if err != nil {
+		return
+	}
+
+	s.cache.SetIndexed(
+		s.cache.RedisKey("email_change", "user", strconv.FormatUint(uint64(token.UserID), 10)),
+		s.cache.RedisKey("email_change", "token", token.Token),
+		string(payload),
+		ttlForLocalToken(token.ExpiresAt),
+	)
 }
