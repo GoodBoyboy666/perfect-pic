@@ -48,7 +48,6 @@ func (m *AuthMiddleware) JWTAuth() gin.HandlerFunc {
 
 		c.Set("id", claims.ID)
 		c.Set("username", claims.Username)
-		c.Set("admin", claims.Admin)
 		c.Next()
 	}
 }
@@ -101,15 +100,34 @@ func (m *AuthMiddleware) UserStatusCheck() gin.HandlerFunc {
 	}
 }
 
-func AdminCheck() gin.HandlerFunc {
+func (m *AuthMiddleware) AdminCheck() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		value, exist := c.Get("admin")
-		isAdmin, ok := value.(bool)
-		if !exist || !ok || !isAdmin {
+		if m.userService == nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "用户服务未初始化"})
+			c.Abort()
+			return
+		}
+
+		userID, exists := c.Get("id")
+		if !exists {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "未获取到用户信息"})
+			c.Abort()
+			return
+		}
+		uid, ok := userID.(uint)
+		if !ok {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "无效的用户ID类型"})
+			c.Abort()
+			return
+		}
+
+		isAdmin, err := m.userService.GetUserAdmin(uid)
+		if err != nil || !isAdmin {
 			c.JSON(http.StatusForbidden, gin.H{"error": "需要管理员权限才能访问"})
 			c.Abort()
 			return
 		}
+
 		c.Next()
 	}
 }
