@@ -220,7 +220,7 @@ func TestAdminCheck(t *testing.T) {
 		t.Fatalf("create admin user failed: %v", err)
 	}
 
-	// 即便 JWT 中 admin=true，只要数据库不是管理员也必须拦截。
+	// 非管理员返回 403。
 	r := gin.New()
 	r.GET("/admin",
 		func(c *gin.Context) { c.Set("id", normalUser.ID); c.Next() },
@@ -233,6 +233,7 @@ func TestAdminCheck(t *testing.T) {
 		t.Fatalf("期望 403 for non-admin(db)，实际为 %d", w.Code)
 	}
 
+	// 管理员返回 200。
 	r2 := gin.New()
 	r2.GET("/admin",
 		func(c *gin.Context) { c.Set("id", adminUser.ID); c.Next() },
@@ -243,6 +244,32 @@ func TestAdminCheck(t *testing.T) {
 	r2.ServeHTTP(w2, httptest.NewRequest(http.MethodGet, "/admin", nil))
 	if w2.Code != http.StatusOK {
 		t.Fatalf("期望 200 for admin(db)，实际为 %d", w2.Code)
+	}
+
+	// 用户不存在时返回 401（与 UserStatusCheck 一致）。
+	r3 := gin.New()
+	r3.GET("/admin",
+		func(c *gin.Context) { c.Set("id", uint(999999)); c.Next() },
+		authMiddleware.AdminCheck(),
+		func(c *gin.Context) { c.Status(http.StatusOK) },
+	)
+	w3 := httptest.NewRecorder()
+	r3.ServeHTTP(w3, httptest.NewRequest(http.MethodGet, "/admin", nil))
+	if w3.Code != http.StatusUnauthorized {
+		t.Fatalf("期望 401 for missing user，实际为 %d", w3.Code)
+	}
+
+	// 用户服务未初始化时返回 500。
+	r4 := gin.New()
+	r4.GET("/admin",
+		func(c *gin.Context) { c.Set("id", adminUser.ID); c.Next() },
+		NewAuthMiddleware(buildTestJWT(), nil).AdminCheck(),
+		func(c *gin.Context) { c.Status(http.StatusOK) },
+	)
+	w4 := httptest.NewRecorder()
+	r4.ServeHTTP(w4, httptest.NewRequest(http.MethodGet, "/admin", nil))
+	if w4.Code != http.StatusInternalServerError {
+		t.Fatalf("期望 500 for nil userService，实际为 %d", w4.Code)
 	}
 }
 

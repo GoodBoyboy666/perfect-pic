@@ -1,12 +1,14 @@
 package middleware
 
 import (
+	"errors"
 	"net/http"
 	"perfect-pic-server/internal/pkg/jwt"
 	"perfect-pic-server/internal/service"
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 type AuthMiddleware struct {
@@ -122,7 +124,16 @@ func (m *AuthMiddleware) AdminCheck() gin.HandlerFunc {
 		}
 
 		isAdmin, err := m.userService.GetUserAdmin(uid)
-		if err != nil || !isAdmin {
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "用户不存在"})
+			} else {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "管理员鉴权失败"})
+			}
+			c.Abort()
+			return
+		}
+		if !isAdmin {
 			c.JSON(http.StatusForbidden, gin.H{"error": "需要管理员权限才能访问"})
 			c.Abort()
 			return
