@@ -23,7 +23,7 @@ func TestUploadBodyLimitMiddleware_RejectsTooLarge(t *testing.T) {
 		t.Fatalf("设置配置项失败: %v", err)
 	}
 	testService.ClearCache()
-	bodyLimit := NewBodyLimitConfig(testService)
+	bodyLimit := NewBodyLimitMiddleware(testService)
 
 	r := gin.New()
 	r.POST("/upload", bodyLimit.UploadBodyLimitMiddleware(), func(c *gin.Context) { c.Status(http.StatusOK) })
@@ -47,7 +47,7 @@ func TestBodyLimitMiddleware_LimitsNonUploadRoutes(t *testing.T) {
 	// 1MB 限制
 	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigMaxRequestBodySize, Value: "1"}).Error
 	testService.ClearCache()
-	bodyLimit := NewBodyLimitConfig(testService)
+	bodyLimit := NewBodyLimitMiddleware(testService)
 
 	r := gin.New()
 	r.POST("/x", bodyLimit.BodyLimitMiddleware(), func(c *gin.Context) {
@@ -78,7 +78,7 @@ func TestBodyLimitMiddleware_DoesNotBypassByPathSuffix(t *testing.T) {
 	// 1MB 限制
 	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigMaxRequestBodySize, Value: "1"}).Error
 	testService.ClearCache()
-	bodyLimit := NewBodyLimitConfig(testService)
+	bodyLimit := NewBodyLimitMiddleware(testService)
 
 	r := gin.New()
 	r.POST("/upload", bodyLimit.BodyLimitMiddleware(), func(c *gin.Context) {

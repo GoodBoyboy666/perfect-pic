@@ -66,7 +66,7 @@ func TestInitRouter_RegistersCoreRoutes(t *testing.T) {
 		ratelimit.NewTokenBucketLimiter(nil),
 		ratelimit.NewIntervalLimiter(nil),
 	)
-	bodyLimitMiddleware := middleware.NewBodyLimitConfig(dbConfig)
+	bodyLimitMiddleware := middleware.NewBodyLimitMiddleware(dbConfig)
 	securityHeadersMiddleware := middleware.NewSecurityHeadersMiddleware(dbConfig)
 	rt := NewRouter(
 		authMiddleware,

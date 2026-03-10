@@ -48,7 +48,7 @@ func InitializeApplication() (*Application, error) {
 	tokenBucketLimiter := ratelimit.NewTokenBucketLimiter(baseRateLimiter)
 	intervalLimiter := ratelimit.NewIntervalLimiter(baseRateLimiter)
 	rateLimitMiddleware := middleware.NewRateLimitMiddleware(dbConfig, tokenBucketLimiter, intervalLimiter)
-	bodyLimitMiddleware := middleware.NewBodyLimitConfig(dbConfig)
+	bodyLimitMiddleware := middleware.NewBodyLimitMiddleware(dbConfig)
 	securityHeadersMiddleware := middleware.NewSecurityHeadersMiddleware(dbConfig)
 	authService := service.NewAuthService(dbConfig, jwtJWT)
 	captchaService := service.NewCaptchaService(dbConfig)
