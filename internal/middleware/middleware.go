@@ -16,7 +16,7 @@ func NewAuthMiddleware(jwt *jwt.JWT, userService *service.UserService) *AuthMidd
 	}
 }
 
-func NewBodyLimitConfig(dbConfig *config.DBConfig) *BodyLimitMiddleware {
+func NewBodyLimitMiddleware(dbConfig *config.DBConfig) *BodyLimitMiddleware {
 	return &BodyLimitMiddleware{dbConfig: dbConfig}
 }
 
@@ -42,7 +42,7 @@ func NewStaticCacheMiddleware(dbConfig *config.DBConfig) *StaticCacheMiddleware 
 
 var MiddlewareSet = wire.NewSet(
 	NewAuthMiddleware,
-	NewBodyLimitConfig,
+	NewBodyLimitMiddleware,
 	NewRateLimitMiddleware,
 	NewSecurityHeadersMiddleware,
 	NewStaticCacheMiddleware,
