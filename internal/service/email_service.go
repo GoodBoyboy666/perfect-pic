@@ -43,12 +43,16 @@ type PasswordResetData struct {
 
 var strictEmailRegex = regexp.MustCompile(`[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z0-9]+`)
 
-func (s *EmailService) ShouldSendEmail() bool {
+func (s *EmailService) EmailEnabled() bool {
 	if !s.dbConfig.GetBool(consts.ConfigEnableSMTP) {
 		return false
 	}
 	cfg := s.staticConfig
 	return strings.TrimSpace(cfg.SMTP.Host) != ""
+}
+
+func (s *EmailService) ShouldSendRegistrationVerificationEmail() bool {
+	return s.dbConfig.GetBool(consts.ConfigSendRegistrationVerificationEmail)
 }
 
 // SendVerificationEmail 发送验证邮件

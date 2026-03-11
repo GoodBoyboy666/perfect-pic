@@ -50,21 +50,24 @@ func (c *AuthUseCase) RegisterUser(username, password, email string) error {
 		return toRegisterAuthError(err)
 	}
 
-	verifyToken, err := c.userService.GenerateEmailVerificationToken(newUser.ID, newUser.Email)
-	if err != nil {
-		return httpx.NewAuthError(httpx.AuthErrorInternal, "注册失败，请稍后重试")
-	}
+	if c.emailService.ShouldSendRegistrationVerificationEmail() {
+		verifyToken, err := c.userService.GenerateEmailVerificationToken(newUser.ID, newUser.Email)
+		if err != nil {
+			return httpx.NewAuthError(httpx.AuthErrorInternal, "注册失败，请稍后重试")
+		}
 
-	baseURL := c.dbConfig.GetString(consts.ConfigBaseURL)
-	if baseURL == "" {
-		baseURL = "http://localhost"
-	}
-	if len(baseURL) > 0 && baseURL[len(baseURL)-1] == '/' {
-		baseURL = baseURL[:len(baseURL)-1]
-	}
+		baseURL := c.dbConfig.GetString(consts.ConfigBaseURL)
+		if baseURL == "" {
+			baseURL = "http://localhost"
+		}
+		if len(baseURL) > 0 && baseURL[len(baseURL)-1] == '/' {
+			baseURL = baseURL[:len(baseURL)-1]
+		}
 
-	verifyURL := fmt.Sprintf("%s/auth/email-verify?token=%s", baseURL, verifyToken)
-	if c.emailService.ShouldSendEmail() {
+		verifyURL := fmt.Sprintf("%s/auth/email-verify?token=%s", baseURL, verifyToken)
+		if !c.emailService.EmailEnabled() {
+			return httpx.NewAuthError(httpx.AuthErrorInternal, "系统未开启邮件服务，无法发送验证邮件，请联系管理员")
+		}
 		go func() {
 			_ = c.emailService.SendVerificationEmail(newUser.Email, newUser.Username, verifyURL)
 		}()
@@ -160,6 +163,9 @@ func (c *AuthUseCase) VerifyEmailChange(token string) error {
 
 // RequestPasswordReset 发起忘记密码流程并异步发送重置邮件。
 func (c *AuthUseCase) RequestPasswordReset(email string) error {
+	if !c.emailService.EmailEnabled() {
+		return httpx.NewAuthError(httpx.AuthErrorInternal, "系统未配置邮件服务，无法重置密码")
+	}
 	user, err := c.userStore.FindByEmail(email)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -186,11 +192,9 @@ func (c *AuthUseCase) RequestPasswordReset(email string) error {
 	}
 	resetURL := fmt.Sprintf("%s/auth/reset-password?token=%s", baseURL, token)
 
-	if c.emailService.ShouldSendEmail() {
-		go func() {
-			_ = c.emailService.SendPasswordResetEmail(user.Email, user.Username, resetURL)
-		}()
-	}
+	go func() {
+		_ = c.emailService.SendPasswordResetEmail(user.Email, user.Username, resetURL)
+	}()
 
 	return nil
 }
