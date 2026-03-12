@@ -48,7 +48,18 @@ func (s *EmailService) EmailEnabled() bool {
 		return false
 	}
 	cfg := s.staticConfig
-	return strings.TrimSpace(cfg.SMTP.Host) != ""
+	host := strings.TrimSpace(cfg.SMTP.Host)
+	if host == "" {
+		return false
+	}
+	from := strings.TrimSpace(cfg.SMTP.From)
+	if from == "" {
+		return false
+	}
+	if _, err := mail.ParseAddress(from); err != nil {
+		return false
+	}
+	return true
 }
 
 func (s *EmailService) ShouldSendRegistrationVerificationEmail() bool {
