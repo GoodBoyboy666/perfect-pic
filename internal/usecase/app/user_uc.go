@@ -4,14 +4,18 @@ import (
 	"fmt"
 	commonpkg "perfect-pic-server/internal/common"
 	"perfect-pic-server/internal/consts"
-	"perfect-pic-server/internal/utils"
+	moduledto "perfect-pic-server/internal/dto"
+	"perfect-pic-server/internal/pkg/validator"
 
 	"golang.org/x/crypto/bcrypt"
 )
 
 // RequestEmailChange 发起邮箱修改流程并异步发送验证邮件。
 func (c *UserUseCase) RequestEmailChange(userID uint, password, newEmail string) error {
-	if ok, msg := utils.ValidateEmail(newEmail); !ok {
+	if !c.emailService.EmailEnabled() {
+		return commonpkg.NewInternalError("系统未开启邮件服务，无法修改邮箱")
+	}
+	if ok, msg := validator.ValidateEmail(newEmail); !ok {
 		return commonpkg.NewValidationError(msg)
 	}
 
@@ -50,11 +54,26 @@ func (c *UserUseCase) RequestEmailChange(userID uint, password, newEmail string)
 	}
 	verifyURL := fmt.Sprintf("%s/auth/email-change-verify?token=%s", baseURL, token)
 
-	if c.emailService.ShouldSendEmail() {
-		go func() {
-			_ = c.emailService.SendEmailChangeVerification(newEmail, user.Username, user.Email, newEmail, verifyURL)
-		}()
-	}
+	go func() {
+		_ = c.emailService.SendEmailChangeVerification(newEmail, user.Username, user.Email, newEmail, verifyURL)
+	}()
 
 	return nil
+}
+
+// UpdateUsernameAndGenerateToken 修改用户名并签发新登录令牌。
+func (c *UserUseCase) UpdateUsernameAndGenerateToken(userID uint, username string) (string, error) {
+	if err := c.userService.UpdateUser(userID, moduledto.UpdateUserRequest{Username: &username}, false); err != nil {
+		return "", err
+	}
+	user, err := c.userStore.FindByID(userID)
+	if err != nil {
+		return "", commonpkg.NewInternalError("更新失败")
+	}
+	return c.authService.IssueLoginToken(user)
+}
+
+// UpdatePasswordByOldPassword 使用旧密码校验后更新密码。
+func (c *UserUseCase) UpdatePasswordByOldPassword(userID uint, oldPassword, newPassword string) error {
+	return c.userService.UpdatePasswordByOldPassword(userID, oldPassword, newPassword)
 }

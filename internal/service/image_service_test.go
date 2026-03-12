@@ -9,7 +9,6 @@ import (
 	moduledto "perfect-pic-server/internal/dto"
 	"testing"
 
-	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/model"
 	"perfect-pic-server/internal/testutils"
 )
@@ -52,7 +51,7 @@ func TestDeleteImage_RemovesFileAndUpdatesStorage(t *testing.T) {
 	defer func() { _ = os.Chdir(oldwd) }()
 
 	u := model.User{Username: "alice", Password: "x", Status: 1, Email: "a@example.com", StorageUsed: 4}
-	_ = db.DB.Create(&u).Error
+	_ = testGormDB.Create(&u).Error
 
 	imgRel := "2026/02/13/a.png"
 	full := filepath.Join("uploads", "imgs", filepath.FromSlash(imgRel))
@@ -60,7 +59,7 @@ func TestDeleteImage_RemovesFileAndUpdatesStorage(t *testing.T) {
 	_ = os.WriteFile(full, []byte{0x89, 0x50, 0x4E, 0x47}, 0644)
 
 	img := model.Image{Filename: "a.png", Path: imgRel, Size: 4, Width: 1, Height: 1, MimeType: ".png", UploadedAt: 1, UserID: u.ID}
-	_ = db.DB.Create(&img).Error
+	_ = testGormDB.Create(&img).Error
 
 	if err := testService.DeleteImage(&img); err != nil {
 		t.Fatalf("DeleteImage: %v", err)
@@ -70,13 +69,13 @@ func TestDeleteImage_RemovesFileAndUpdatesStorage(t *testing.T) {
 	}
 
 	var count int64
-	_ = db.DB.Model(&model.Image{}).Count(&count).Error
+	_ = testGormDB.Model(&model.Image{}).Count(&count).Error
 	if count != 0 {
 		t.Fatalf("期望 image record deleted")
 	}
 
 	var got model.User
-	_ = db.DB.First(&got, u.ID).Error
+	_ = testGormDB.First(&got, u.ID).Error
 	if got.StorageUsed != 0 {
 		t.Fatalf("期望 storage_used 0，实际为 %d", got.StorageUsed)
 	}
@@ -92,12 +91,12 @@ func TestBatchDeleteImages_RemovesFilesAndUpdatesStorage(t *testing.T) {
 	defer func() { _ = os.Chdir(oldwd) }()
 
 	u := model.User{Username: "alice", Password: "x", Status: 1, Email: "a@example.com", StorageUsed: 8}
-	_ = db.DB.Create(&u).Error
+	_ = testGormDB.Create(&u).Error
 
 	img1 := model.Image{Filename: "a.png", Path: "2026/02/13/a.png", Size: 4, Width: 1, Height: 1, MimeType: ".png", UploadedAt: 1, UserID: u.ID}
 	img2 := model.Image{Filename: "b.png", Path: "2026/02/13/b.png", Size: 4, Width: 1, Height: 1, MimeType: ".png", UploadedAt: 1, UserID: u.ID}
-	_ = db.DB.Create(&img1).Error
-	_ = db.DB.Create(&img2).Error
+	_ = testGormDB.Create(&img1).Error
+	_ = testGormDB.Create(&img2).Error
 
 	full1 := filepath.Join("uploads", "imgs", filepath.FromSlash(img1.Path))
 	full2 := filepath.Join("uploads", "imgs", filepath.FromSlash(img2.Path))
@@ -116,7 +115,7 @@ func TestBatchDeleteImages_RemovesFilesAndUpdatesStorage(t *testing.T) {
 	}
 
 	var got model.User
-	_ = db.DB.First(&got, u.ID).Error
+	_ = testGormDB.First(&got, u.ID).Error
 	if got.StorageUsed != 0 {
 		t.Fatalf("期望 storage_used 0，实际为 %d", got.StorageUsed)
 	}
@@ -139,22 +138,23 @@ func TestListUserImages_FiltersAndPaging(t *testing.T) {
 	setupTestDB(t)
 
 	u := model.User{Username: "u1", Password: "x", Status: 1, Email: "u1@example.com"}
-	if err := db.DB.Create(&u).Error; err != nil {
+	if err := testGormDB.Create(&u).Error; err != nil {
 		t.Fatalf("创建用户失败: %v", err)
 	}
 
 	img1 := model.Image{Filename: "cat.png", Path: "2026/02/13/cat.png", Size: 1, Width: 1, Height: 1, MimeType: ".png", UploadedAt: 1, UserID: u.ID}
 	img2 := model.Image{Filename: "dog.png", Path: "2026/02/13/dog.png", Size: 1, Width: 1, Height: 1, MimeType: ".png", UploadedAt: 2, UserID: u.ID}
-	_ = db.DB.Create(&img1).Error
-	_ = db.DB.Create(&img2).Error
+	_ = testGormDB.Create(&img1).Error
+	_ = testGormDB.Create(&img2).Error
 
-	list, total, page, pageSize, err := testService.ListUserImages(moduledto.UserImageListRequest{
+	uid := u.ID
+	list, total, page, pageSize, err := testService.ListImages(moduledto.ListImagesRequest{
 		PaginationRequest: moduledto.PaginationRequest{Page: 1, PageSize: 10},
-		UserID:            u.ID,
+		UserID:            &uid,
 		Filename:          "cat",
 	})
 	if err != nil {
-		t.Fatalf("ListUserImages: %v", err)
+		t.Fatalf("ListImages(user): %v", err)
 	}
 	if total != 1 || page != 1 || pageSize != 10 || len(list) != 1 {
 		t.Fatalf("非预期 result: total=%d page=%d pageSize=%d len=%d", total, page, pageSize, len(list))
@@ -164,40 +164,42 @@ func TestListUserImages_FiltersAndPaging(t *testing.T) {
 	}
 }
 
-// 测试内容：验证只能获取当前用户拥有的图片记录。
-func TestGetUserOwnedImage(t *testing.T) {
+// 测试内容：验证统一 GetImageByID 在用户作用域下只能获取自己的图片。
+func TestGetImageByID_UserScoped(t *testing.T) {
 	setupTestDB(t)
 
 	u := model.User{Username: "u1", Password: "x", Status: 1, Email: "u1@example.com"}
-	_ = db.DB.Create(&u).Error
+	_ = testGormDB.Create(&u).Error
 	img := model.Image{Filename: "a.png", Path: "2026/02/13/a.png", Size: 1, Width: 1, Height: 1, MimeType: ".png", UploadedAt: 1, UserID: u.ID}
-	_ = db.DB.Create(&img).Error
+	_ = testGormDB.Create(&img).Error
 
-	got, err := testService.GetUserOwnedImage(img.ID, u.ID)
+	uid := u.ID
+	got, err := testService.GetImageByID(img.ID, &uid)
 	if err != nil {
-		t.Fatalf("GetUserOwnedImage: %v", err)
+		t.Fatalf("GetImageByID(user-scoped): %v", err)
 	}
 	if got.ID != img.ID {
 		t.Fatalf("期望 image id %d，实际为 %d", img.ID, got.ID)
 	}
 
-	_, err = testService.GetUserOwnedImage(img.ID, u.ID+1)
+	otherUID := u.ID + 1
+	_, err = testService.GetImageByID(img.ID, &otherUID)
 	if err == nil {
 		t.Fatalf("期望返回错误 for non-owned image")
 	}
 }
 
-// 测试内容：验证图片数量统计及按 ID 获取（用户/管理员）接口的正确性。
-func TestGetUserImageCountAndBatchGetters(t *testing.T) {
+// 测试内容：验证统一 GetImageByID/GetImagesByIDs 在用户/管理员作用域下的行为。
+func TestGetImageGetters_ByScope(t *testing.T) {
 	setupTestDB(t)
 
 	u := model.User{Username: "u1", Password: "x", Status: 1, Email: "u1@example.com"}
-	_ = db.DB.Create(&u).Error
+	_ = testGormDB.Create(&u).Error
 
 	img1 := model.Image{Filename: "a.png", Path: "2026/02/13/a.png", Size: 1, Width: 1, Height: 1, MimeType: ".png", UploadedAt: 1, UserID: u.ID}
 	img2 := model.Image{Filename: "b.png", Path: "2026/02/13/b.png", Size: 1, Width: 1, Height: 1, MimeType: ".png", UploadedAt: 1, UserID: u.ID}
-	_ = db.DB.Create(&img1).Error
-	_ = db.DB.Create(&img2).Error
+	_ = testGormDB.Create(&img1).Error
+	_ = testGormDB.Create(&img2).Error
 
 	cnt, err := testService.GetUserImageCount(u.ID)
 	if err != nil {
@@ -207,22 +209,23 @@ func TestGetUserImageCountAndBatchGetters(t *testing.T) {
 		t.Fatalf("期望 2，实际为 %d", cnt)
 	}
 
-	images, err := testService.GetImagesByIDsForUser([]uint{img1.ID, img2.ID}, u.ID)
+	uid := u.ID
+	images, err := testService.GetImagesByIDs([]uint{img1.ID, img2.ID}, &uid)
 	if err != nil || len(images) != 2 {
-		t.Fatalf("GetImagesByIDsForUser: err=%v len=%d", err, len(images))
+		t.Fatalf("GetImagesByIDs(user-scoped): err=%v len=%d", err, len(images))
 	}
 
-	got, err := testService.AdminGetImageByID(img1.ID)
+	got, err := testService.GetImageByID(img1.ID, nil)
 	if err != nil {
-		t.Fatalf("AdminGetImageByID: %v", err)
+		t.Fatalf("GetImageByID(admin-scope): %v", err)
 	}
 	if got.ID != img1.ID {
 		t.Fatalf("非预期 image id")
 	}
 
-	images2, err := testService.AdminGetImagesByIDs([]uint{img1.ID, img2.ID})
+	images2, err := testService.GetImagesByIDs([]uint{img1.ID, img2.ID}, nil)
 	if err != nil || len(images2) != 2 {
-		t.Fatalf("AdminGetImagesByIDs: err=%v len=%d", err, len(images2))
+		t.Fatalf("GetImagesByIDs(admin-scope): err=%v len=%d", err, len(images2))
 	}
 }
 
@@ -232,18 +235,19 @@ func TestListImagesForAdmin_Filters(t *testing.T) {
 
 	u1 := model.User{Username: "alice", Password: "x", Status: 1, Email: "a@example.com"}
 	u2 := model.User{Username: "bob", Password: "x", Status: 1, Email: "b@example.com"}
-	_ = db.DB.Create(&u1).Error
-	_ = db.DB.Create(&u2).Error
+	_ = testGormDB.Create(&u1).Error
+	_ = testGormDB.Create(&u2).Error
 
-	_ = db.DB.Create(&model.Image{Filename: "a.png", Path: "2026/02/13/a.png", Size: 1, Width: 1, Height: 1, MimeType: ".png", UploadedAt: 1, UserID: u1.ID}).Error
-	_ = db.DB.Create(&model.Image{Filename: "b.png", Path: "2026/02/13/b.png", Size: 1, Width: 1, Height: 1, MimeType: ".png", UploadedAt: 1, UserID: u2.ID}).Error
+	_ = testGormDB.Create(&model.Image{Filename: "a.png", Path: "2026/02/13/a.png", Size: 1, Width: 1, Height: 1, MimeType: ".png", UploadedAt: 1, UserID: u1.ID}).Error
+	_ = testGormDB.Create(&model.Image{Filename: "b.png", Path: "2026/02/13/b.png", Size: 1, Width: 1, Height: 1, MimeType: ".png", UploadedAt: 1, UserID: u2.ID}).Error
 
-	images, total, _, _, err := testService.AdminListImages(moduledto.AdminImageListRequest{
+	images, total, _, _, err := testService.ListImages(moduledto.ListImagesRequest{
 		PaginationRequest: moduledto.PaginationRequest{Page: 1, PageSize: 10},
 		Username:          "ali",
+		PreloadUser:       true,
 	})
 	if err != nil {
-		t.Fatalf("AdminListImages: %v", err)
+		t.Fatalf("ListImages(admin): %v", err)
 	}
 	if total != 1 || len(images) != 1 {
 		t.Fatalf("期望 1 image，实际为 total=%d len=%d", total, len(images))
@@ -252,13 +256,14 @@ func TestListImagesForAdmin_Filters(t *testing.T) {
 		t.Fatalf("期望 preload user alice，实际为 %q", images[0].User.Username)
 	}
 
-	images2, total2, _, _, err := testService.AdminListImages(moduledto.AdminImageListRequest{
+	images2, total2, _, _, err := testService.ListImages(moduledto.ListImagesRequest{
 		PaginationRequest: moduledto.PaginationRequest{Page: 1, PageSize: 10},
 		Filename:          "a.",
 		UserID:            &u1.ID,
+		PreloadUser:       true,
 	})
 	if err != nil {
-		t.Fatalf("testService.AdminListImages(by filename/user_id): %v", err)
+		t.Fatalf("ListImages(admin by filename/user_id): %v", err)
 	}
 	if total2 != 1 || len(images2) != 1 {
 		t.Fatalf("期望 1 image，实际为 total=%d len=%d", total2, len(images2))

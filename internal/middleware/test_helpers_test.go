@@ -10,11 +10,15 @@ import (
 	"gorm.io/gorm"
 )
 
-var testService *config.DBConfig
+var (
+	testService *config.DBConfig
+	testGormDB  *gorm.DB
+)
 
 func setupTestDB(t *testing.T) *gorm.DB {
 	config.InitConfig("")
 	gdb := testutils.SetupDB(t)
+	testGormDB = gdb
 	settingStore := repository.NewSettingRepository(gdb)
 	testService = config.NewDBConfig(settingStore)
 	testService.ClearCache()
@@ -22,8 +26,5 @@ func setupTestDB(t *testing.T) *gorm.DB {
 }
 
 func resetStatusCache() {
-	statusCache.Range(func(key, value any) bool {
-		statusCache.Delete(key)
-		return true
-	})
+	// no-op: 状态缓存已改为依赖注入的 cache.Store，由测试自行创建与隔离。
 }

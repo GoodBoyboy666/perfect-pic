@@ -4,7 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"perfect-pic-server/internal/common"
-	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/model"
 	"perfect-pic-server/internal/testutils"
 	"strconv"
@@ -24,7 +23,7 @@ func TestImageUseCase_ProcessImageUpload_QuotaExceeded(t *testing.T) {
 		Email:        "alice@example.com",
 		StorageQuota: &quota,
 	}
-	if err := db.DB.Create(&u).Error; err != nil {
+	if err := testGormDB.Create(&u).Error; err != nil {
 		t.Fatalf("create user failed: %v", err)
 	}
 
@@ -45,7 +44,7 @@ func TestImageUseCase_ProcessImageUpload_Success(t *testing.T) {
 		Status:   1,
 		Email:    "alice@example.com",
 	}
-	if err := db.DB.Create(&u).Error; err != nil {
+	if err := testGormDB.Create(&u).Error; err != nil {
 		t.Fatalf("create user failed: %v", err)
 	}
 
@@ -57,8 +56,19 @@ func TestImageUseCase_ProcessImageUpload_Success(t *testing.T) {
 	if img == nil || img.ID == 0 {
 		t.Fatalf("expected created image record")
 	}
+	if img.Width != 1 || img.Height != 1 {
+		t.Fatalf("expected 1x1 image dimensions, got %dx%d", img.Width, img.Height)
+	}
 	if !strings.HasPrefix(url, "/imgs/") {
 		t.Fatalf("expected /imgs prefix, got: %q", url)
+	}
+
+	var stored model.Image
+	if err := testGormDB.First(&stored, img.ID).Error; err != nil {
+		t.Fatalf("reload image failed: %v", err)
+	}
+	if stored.Width != 1 || stored.Height != 1 {
+		t.Fatalf("expected persisted 1x1 dimensions, got %dx%d", stored.Width, stored.Height)
 	}
 
 	full := filepath.Join("uploads", "imgs", filepath.FromSlash(img.Path))
@@ -78,7 +88,7 @@ func TestImageUseCase_UpdateAndRemoveUserAvatar_Success(t *testing.T) {
 		Email:    "alice@example.com",
 		Avatar:   "old.png",
 	}
-	if err := db.DB.Create(&u).Error; err != nil {
+	if err := testGormDB.Create(&u).Error; err != nil {
 		t.Fatalf("create user failed: %v", err)
 	}
 
@@ -103,7 +113,7 @@ func TestImageUseCase_UpdateAndRemoveUserAvatar_Success(t *testing.T) {
 	}
 
 	var got model.User
-	if err := db.DB.First(&got, u.ID).Error; err != nil {
+	if err := testGormDB.First(&got, u.ID).Error; err != nil {
 		t.Fatalf("reload user failed: %v", err)
 	}
 	if got.Avatar == "" {
@@ -119,7 +129,7 @@ func TestImageUseCase_UpdateAndRemoveUserAvatar_Success(t *testing.T) {
 	}
 
 	var got2 model.User
-	if err := db.DB.First(&got2, u.ID).Error; err != nil {
+	if err := testGormDB.First(&got2, u.ID).Error; err != nil {
 		t.Fatalf("reload user2 failed: %v", err)
 	}
 	if got2.Avatar != "" {
@@ -141,7 +151,7 @@ func TestImageUseCase_RemoveUserAvatar_NoAvatarNoop(t *testing.T) {
 		Email:    "alice@example.com",
 		Avatar:   "",
 	}
-	if err := db.DB.Create(&u).Error; err != nil {
+	if err := testGormDB.Create(&u).Error; err != nil {
 		t.Fatalf("create user failed: %v", err)
 	}
 

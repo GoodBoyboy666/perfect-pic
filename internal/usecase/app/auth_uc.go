@@ -3,11 +3,11 @@ package app
 import (
 	"errors"
 	"fmt"
+	commonpkg "perfect-pic-server/internal/common"
 	"perfect-pic-server/internal/common/httpx"
 	"perfect-pic-server/internal/consts"
-	"perfect-pic-server/internal/model"
-	"perfect-pic-server/internal/utils"
-	"time"
+	moduledto "perfect-pic-server/internal/dto"
+	"perfect-pic-server/internal/pkg/validator"
 
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
@@ -36,71 +36,43 @@ func (c *AuthUseCase) RegisterUser(username, password, email string) error {
 		return httpx.NewAuthError(httpx.AuthErrorForbidden, "系统尚未初始化，请先完成初始化")
 	}
 
-	if ok, msg := utils.ValidatePassword(password); !ok {
-		return httpx.NewAuthError(httpx.AuthErrorValidation, msg)
-	}
-
-	if ok, msg := utils.ValidateUsername(username); !ok {
-		return httpx.NewAuthError(httpx.AuthErrorValidation, msg)
-	}
-
-	if ok, msg := utils.ValidateEmail(email); !ok {
-		return httpx.NewAuthError(httpx.AuthErrorValidation, msg)
-	}
-
 	if !c.dbConfig.GetBool(consts.ConfigAllowRegister) {
 		return httpx.NewAuthError(httpx.AuthErrorForbidden, "注册功能已关闭")
 	}
 
-	usernameTaken, err := c.userService.IsUsernameTaken(username, nil, true)
+	enableEmail := c.emailService.EmailEnabled()
+	sendRegEmail := c.emailService.ShouldSendRegistrationVerificationEmail()
+
+	if !enableEmail && sendRegEmail {
+		return httpx.NewAuthError(httpx.AuthErrorInternal, "系统未开启邮件服务，无法发送验证邮件，请联系管理员")
+	}
+
+	newEmail := email
+	newUser, err := c.userService.CreateUser(moduledto.CreateUserRequest{
+		Username: username,
+		Password: password,
+		Email:    &newEmail,
+	}, false)
 	if err != nil {
-		return httpx.NewAuthError(httpx.AuthErrorInternal, "注册失败，请稍后重试")
-	}
-	if usernameTaken {
-		return httpx.NewAuthError(httpx.AuthErrorConflict, "用户名已存在")
+		return toRegisterAuthError(err)
 	}
 
-	emailTaken, err := c.userService.IsEmailTaken(email, nil, true)
-	if err != nil {
-		return httpx.NewAuthError(httpx.AuthErrorInternal, "注册失败，请稍后重试")
-	}
-	if emailTaken {
-		return httpx.NewAuthError(httpx.AuthErrorConflict, "邮箱已被注册")
-	}
+	if sendRegEmail {
+		verifyToken, err := c.userService.GenerateEmailVerificationToken(newUser.ID, newUser.Email)
+		if err != nil {
+			return httpx.NewAuthError(httpx.AuthErrorInternal, "注册失败，请稍后重试")
+		}
 
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	if err != nil {
-		return httpx.NewAuthError(httpx.AuthErrorInternal, "密码加密失败")
-	}
+		baseURL := c.dbConfig.GetString(consts.ConfigBaseURL)
+		if baseURL == "" {
+			baseURL = "http://localhost"
+		}
+		if len(baseURL) > 0 && baseURL[len(baseURL)-1] == '/' {
+			baseURL = baseURL[:len(baseURL)-1]
+		}
 
-	newUser := model.User{
-		Username:      username,
-		Password:      string(hashedPassword),
-		Email:         email,
-		EmailVerified: false,
-		Admin:         false,
-		Avatar:        "",
-	}
+		verifyURL := fmt.Sprintf("%s/auth/email-verify?token=%s", baseURL, verifyToken)
 
-	if err := c.userService.CreateUser(&newUser); err != nil {
-		return httpx.NewAuthError(httpx.AuthErrorInternal, "注册失败，请稍后重试")
-	}
-
-	verifyToken, err := utils.GenerateEmailToken(newUser.ID, newUser.Email, 30*time.Minute)
-	if err != nil {
-		return httpx.NewAuthError(httpx.AuthErrorInternal, "注册失败，请稍后重试")
-	}
-
-	baseURL := c.dbConfig.GetString(consts.ConfigBaseURL)
-	if baseURL == "" {
-		baseURL = "http://localhost"
-	}
-	if len(baseURL) > 0 && baseURL[len(baseURL)-1] == '/' {
-		baseURL = baseURL[:len(baseURL)-1]
-	}
-
-	verifyURL := fmt.Sprintf("%s/auth/email-verify?token=%s", baseURL, verifyToken)
-	if c.emailService.ShouldSendEmail() {
 		go func() {
 			_ = c.emailService.SendVerificationEmail(newUser.Email, newUser.Username, verifyURL)
 		}()
@@ -109,19 +81,31 @@ func (c *AuthUseCase) RegisterUser(username, password, email string) error {
 	return nil
 }
 
+func toRegisterAuthError(err error) error {
+	serviceErr, ok := commonpkg.AsServiceError(err)
+	if !ok {
+		return httpx.NewAuthError(httpx.AuthErrorInternal, "注册失败，请稍后重试")
+	}
+
+	switch serviceErr.Code {
+	case commonpkg.ErrorCodeValidation:
+		return httpx.NewAuthError(httpx.AuthErrorValidation, serviceErr.Message)
+	case commonpkg.ErrorCodeConflict:
+		return httpx.NewAuthError(httpx.AuthErrorConflict, serviceErr.Message)
+	default:
+		return httpx.NewAuthError(httpx.AuthErrorInternal, "注册失败，请稍后重试")
+	}
+}
+
 // VerifyEmail 验证邮箱激活令牌。
 // 返回值第一个参数为 true 表示该邮箱已是验证状态。
 func (c *AuthUseCase) VerifyEmail(token string) (bool, error) {
-	claims, err := utils.ParseEmailToken(token)
-	if err != nil {
+	userID, tokenEmail, ok := c.userService.VerifyEmailVerificationToken(token)
+	if !ok {
 		return false, httpx.NewAuthError(httpx.AuthErrorValidation, "验证链接已失效或不正确")
 	}
 
-	if claims.Type != "email_verify" {
-		return false, httpx.NewAuthError(httpx.AuthErrorValidation, "无效的验证 Token 类型")
-	}
-
-	user, err := c.userStore.FindByID(claims.ID)
+	user, err := c.userStore.FindByID(userID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return false, httpx.NewAuthError(httpx.AuthErrorNotFound, "用户不存在")
@@ -129,7 +113,7 @@ func (c *AuthUseCase) VerifyEmail(token string) (bool, error) {
 		return false, httpx.NewAuthError(httpx.AuthErrorInternal, "验证失败，请稍后重试")
 	}
 
-	if user.Email != claims.Email {
+	if user.Email != tokenEmail {
 		return false, httpx.NewAuthError(httpx.AuthErrorValidation, "邮箱不匹配，请重新发起验证")
 	}
 
@@ -184,6 +168,9 @@ func (c *AuthUseCase) VerifyEmailChange(token string) error {
 
 // RequestPasswordReset 发起忘记密码流程并异步发送重置邮件。
 func (c *AuthUseCase) RequestPasswordReset(email string) error {
+	if !c.emailService.EmailEnabled() {
+		return httpx.NewAuthError(httpx.AuthErrorInternal, "系统未配置邮件服务，无法重置密码")
+	}
 	user, err := c.userStore.FindByEmail(email)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -210,18 +197,16 @@ func (c *AuthUseCase) RequestPasswordReset(email string) error {
 	}
 	resetURL := fmt.Sprintf("%s/auth/reset-password?token=%s", baseURL, token)
 
-	if c.emailService.ShouldSendEmail() {
-		go func() {
-			_ = c.emailService.SendPasswordResetEmail(user.Email, user.Username, resetURL)
-		}()
-	}
+	go func() {
+		_ = c.emailService.SendPasswordResetEmail(user.Email, user.Username, resetURL)
+	}()
 
 	return nil
 }
 
 // ResetPassword 使用重置令牌设置新密码。
 func (c *AuthUseCase) ResetPassword(token, newPassword string) error {
-	if ok, msg := utils.ValidatePassword(newPassword); !ok {
+	if ok, msg := validator.ValidatePassword(newPassword); !ok {
 		return httpx.NewAuthError(httpx.AuthErrorValidation, msg)
 	}
 

@@ -6,7 +6,6 @@ import (
 
 	"perfect-pic-server/internal/config"
 	"perfect-pic-server/internal/consts"
-	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/model"
 )
 
@@ -51,66 +50,56 @@ func TestFormatAddressHeader(t *testing.T) {
 	}
 }
 
-// 测试内容：验证邮件消息构建包含必要头部与正文。
-func TestBuildEmailMessage(t *testing.T) {
-	msg, err := buildEmailMessage("from@example.com", "to@example.com", "主题", "<p>hi</p>")
-	if err != nil {
-		t.Fatalf("buildEmailMessage: %v", err)
-	}
-	s := string(msg)
-	if !strings.Contains(s, "Subject:") || !strings.Contains(s, "MIME-Version: 1.0") {
-		t.Fatalf("邮件内容缺少头部: %q", s)
-	}
-	if !strings.Contains(s, "<p>hi</p>") {
-		t.Fatalf("邮件内容缺少正文")
-	}
-}
-
-// 测试内容：验证 SMTP 主机缺失时发送测试邮件返回错误。
-func TestSendTestEmail_MissingHost(t *testing.T) {
+// 测试内容：验证 SMTP 未开启时发送测试邮件返回错误。
+func TestSendTestEmail_SMTPDisabledError(t *testing.T) {
 	setupTestDB(t)
 
-	// TestMain 中的 config.InitConfig 设置了默认值；SMTP host 默认为空。
+	// 默认设置 enable_smtp=false，应返回错误。
 	err := testService.SendTestEmail("a@example.com")
 	if err == nil {
-		t.Fatalf("期望返回错误 when SMTP host is 缺少")
+		t.Fatalf("期望返回错误")
+	}
+	if !strings.Contains(err.Error(), "请先开启SMTP功能") {
+		t.Fatalf("期望包含未开启提示，实际为 %v", err)
 	}
 }
 
-// 测试内容：验证 SMTP 禁用时发送验证邮件为 no-op。
-func TestSendVerificationEmail_SMTPDisabledNoop(t *testing.T) {
+// 测试内容：验证 SMTP 禁用时发送验证邮件返回错误。
+func TestSendVerificationEmail_SMTPDisabledError(t *testing.T) {
 	setupTestDB(t)
 
-	// 默认设置 enable_smtp=false，因此这里应为 no-op。
-	if err := testService.SendVerificationEmail("a@example.com", "alice", "http://example/verify"); err != nil {
-		t.Fatalf("期望为 nil，实际为 %v", err)
-	}
-}
-
-// 测试内容：验证 SMTP 禁用时发送邮箱变更验证为 no-op。
-func TestSendEmailChangeVerification_SMTPDisabledNoop(t *testing.T) {
-	setupTestDB(t)
-
-	if err := testService.SendEmailChangeVerification("a@example.com", "alice", "old@example.com", "new@example.com", "http://example/verify"); err != nil {
-		t.Fatalf("期望为 nil，实际为 %v", err)
-	}
-}
-
-// 测试内容：验证 SMTP 禁用时发送密码重置邮件为 no-op。
-func TestSendPasswordResetEmail_SMTPDisabledNoop(t *testing.T) {
-	setupTestDB(t)
-
-	if err := testService.SendPasswordResetEmail("a@example.com", "alice", "http://example/reset"); err != nil {
-		t.Fatalf("期望为 nil，实际为 %v", err)
-	}
-}
-
-// 测试内容：验证 SSL 发送在连接失败时返回错误。
-func TestSendMailWithSSL_DialFailure(t *testing.T) {
-	_, _ = buildEmailMessage("from@example.com", "to@example.com", "sub", "body")
-	err := sendMailWithSSL("127.0.0.1:1", nil, "from@example.com", []string{"to@example.com"}, []byte("x"))
+	err := testService.SendVerificationEmail("a@example.com", "alice", "http://example/verify")
 	if err == nil {
 		t.Fatalf("期望返回错误")
+	}
+	if !strings.Contains(err.Error(), "请先开启SMTP功能") {
+		t.Fatalf("期望包含未开启提示，实际为 %v", err)
+	}
+}
+
+// 测试内容：验证 SMTP 禁用时发送邮箱变更验证返回错误。
+func TestSendEmailChangeVerification_SMTPDisabledError(t *testing.T) {
+	setupTestDB(t)
+
+	err := testService.SendEmailChangeVerification("a@example.com", "alice", "old@example.com", "new@example.com", "http://example/verify")
+	if err == nil {
+		t.Fatalf("期望返回错误")
+	}
+	if !strings.Contains(err.Error(), "请先开启SMTP功能") {
+		t.Fatalf("期望包含未开启提示，实际为 %v", err)
+	}
+}
+
+// 测试内容：验证 SMTP 禁用时发送密码重置邮件返回错误。
+func TestSendPasswordResetEmail_SMTPDisabledError(t *testing.T) {
+	setupTestDB(t)
+
+	err := testService.SendPasswordResetEmail("a@example.com", "alice", "http://example/reset")
+	if err == nil {
+		t.Fatalf("期望返回错误")
+	}
+	if !strings.Contains(err.Error(), "请先开启SMTP功能") {
+		t.Fatalf("期望包含未开启提示，实际为 %v", err)
 	}
 }
 
@@ -119,7 +108,7 @@ func TestEmailSendFunctions_AttemptSendAndFailFast(t *testing.T) {
 	setupTestDB(t)
 
 	// 在设置中启用 SMTP。
-	_ = db.DB.Save(&model.Setting{Key: consts.ConfigEnableSMTP, Value: "true"}).Error
+	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigEnableSMTP, Value: "true"}).Error
 	testService.ClearCache()
 
 	// 重新初始化配置，使用不可达的 SMTP host/port 以便 SendMail 快速失败。

@@ -10,7 +10,6 @@ import (
 	"strconv"
 	"testing"
 
-	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/model"
 
 	"github.com/gin-gonic/gin"
@@ -27,9 +26,9 @@ func TestImageManageHandlers_ListAndDelete(t *testing.T) {
 	defer func() { _ = os.Chdir(oldwd) }()
 
 	u := model.User{Username: "alice", Password: "x", Status: 1, Email: "a@example.com"}
-	_ = db.DB.Create(&u).Error
+	_ = testGormDB.Create(&u).Error
 	u2 := model.User{Username: "bob", Password: "x", Status: 1, Email: "b@example.com"}
-	_ = db.DB.Create(&u2).Error
+	_ = testGormDB.Create(&u2).Error
 
 	// 创建图片物理文件和记录。
 	imgRel := "2026/02/13/a.png"
@@ -38,9 +37,9 @@ func TestImageManageHandlers_ListAndDelete(t *testing.T) {
 	_ = os.WriteFile(imgFile, []byte{0x89, 0x50, 0x4E, 0x47}, 0644)
 
 	img := model.Image{Filename: "a.png", Path: imgRel, Size: 4, Width: 1, Height: 1, MimeType: ".png", UploadedAt: 1, UserID: u.ID}
-	_ = db.DB.Create(&img).Error
+	_ = testGormDB.Create(&img).Error
 	imgOther := model.Image{Filename: "other.png", Path: "2026/02/13/other.png", Size: 4, Width: 1, Height: 1, MimeType: ".png", UploadedAt: 1, UserID: u2.ID}
-	_ = db.DB.Create(&imgOther).Error
+	_ = testGormDB.Create(&imgOther).Error
 
 	r := gin.New()
 	r.GET("/images", testHandler.GetImageList)
@@ -80,8 +79,8 @@ func TestImageManageHandlers_ListAndDelete(t *testing.T) {
 	_ = os.WriteFile(imgFile2, []byte{0x89, 0x50, 0x4E, 0x47}, 0644)
 	imgB := model.Image{Filename: "b.png", Path: "2026/02/13/b.png", Size: 4, Width: 1, Height: 1, MimeType: ".png", UploadedAt: 1, UserID: u.ID}
 	imgC := model.Image{Filename: "c.png", Path: "2026/02/13/c.png", Size: 4, Width: 1, Height: 1, MimeType: ".png", UploadedAt: 1, UserID: u.ID}
-	_ = db.DB.Create(&imgB).Error
-	_ = db.DB.Create(&imgC).Error
+	_ = testGormDB.Create(&imgB).Error
+	_ = testGormDB.Create(&imgC).Error
 
 	body, _ := json.Marshal(gin.H{"ids": []uint{imgB.ID, imgC.ID}})
 	w3 := httptest.NewRecorder()

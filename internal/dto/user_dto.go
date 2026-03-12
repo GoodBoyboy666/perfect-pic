@@ -25,6 +25,11 @@ type EmailChangeRedisPayload struct {
 	NewEmail string `json:"new_email"`
 }
 
+type EmailVerifyRedisPayload struct {
+	UserID uint   `json:"user_id"`
+	Email  string `json:"email"`
+}
+
 type UserProfileResponse struct {
 	ID           uint   `json:"id"`
 	Username     string `json:"username"`
@@ -35,7 +40,7 @@ type UserProfileResponse struct {
 	StorageUsed  int64  `json:"storage_used"`
 }
 
-type AdminUserListRequest struct {
+type UserListRequest struct {
 	Page        int
 	PageSize    int
 	Keyword     string
@@ -46,15 +51,6 @@ type AdminUserListRequest struct {
 type AdminUserUpdateRequest struct {
 	Username      *string
 	Password      *string
-	Email         *string
-	EmailVerified *bool
-	StorageQuota  *int64
-	Status        *int
-}
-
-type AdminCreateUserRequest struct {
-	Username      string
-	Password      string
 	Email         *string
 	EmailVerified *bool
 	StorageQuota  *int64

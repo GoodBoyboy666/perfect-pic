@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"perfect-pic-server/internal/consts"
-	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/model"
 
 	"golang.org/x/crypto/bcrypt"
@@ -94,7 +93,7 @@ func TestDeleteUserFiles_RemovesAvatarDirAndImages(t *testing.T) {
 	defer func() { _ = os.Chdir(oldwd) }()
 
 	userID := uint(7)
-	_ = db.DB.Create(&model.User{
+	_ = testGormDB.Create(&model.User{
 		ID:       userID,
 		Username: "user_7",
 		Password: "x",
@@ -121,7 +120,7 @@ func TestDeleteUserFiles_RemovesAvatarDirAndImages(t *testing.T) {
 		t.Fatalf("写入图片文件失败: %v", err)
 	}
 
-	if err := db.DB.Create(&model.Image{
+	if err := testGormDB.Create(&model.Image{
 		Filename:   "x.png",
 		Path:       imgRel,
 		Size:       4,
@@ -194,8 +193,7 @@ func TestEmailChangeToken_ExpiredRejected(t *testing.T) {
 		NewEmail:  "new@example.com",
 		ExpiresAt: time.Now().Add(-time.Minute),
 	}
-	testService.userService.emailChangeStore.Store(uint(1001), expiredToken)
-	testService.userService.emailChangeTokenStore.Store(expiredToken, expired)
+	testService.userService.putEmailChangeTokenLocalForTest(expired)
 
 	item, ok := testService.VerifyEmailChangeToken(expiredToken)
 	if ok || item != nil {
@@ -242,14 +240,14 @@ func TestGetSystemDefaultStorageQuota(t *testing.T) {
 	}
 
 	// 覆盖为自定义值。
-	_ = db.DB.Save(&model.Setting{Key: consts.ConfigDefaultStorageQuota, Value: "123"}).Error
+	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigDefaultStorageQuota, Value: "123"}).Error
 	testService.ClearCache()
 	if got := testService.GetSystemDefaultStorageQuota(); got != 123 {
 		t.Fatalf("期望 123，实际为 %d", got)
 	}
 
 	// 非法值（<=0）应统一回退到默认 1GB。
-	_ = db.DB.Save(&model.Setting{Key: consts.ConfigDefaultStorageQuota, Value: "-1"}).Error
+	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigDefaultStorageQuota, Value: "-1"}).Error
 	testService.ClearCache()
 	if got := testService.GetSystemDefaultStorageQuota(); got != 1073741824 {
 		t.Fatalf("期望 fallback 1GB，实际为 %d", got)
@@ -261,11 +259,11 @@ func TestGetUserDetailForAdmin(t *testing.T) {
 	setupTestDB(t)
 
 	u := model.User{Username: "alice", Password: "x", Status: 1, Email: "a@example.com"}
-	_ = db.DB.Create(&u).Error
+	_ = testGormDB.Create(&u).Error
 
-	got, err := testService.AdminGetUserDetail(u.ID)
+	got, err := testService.GetUserByID(u.ID, true)
 	if err != nil {
-		t.Fatalf("AdminGetUserDetail: %v", err)
+		t.Fatalf("GetUserByID: %v", err)
 	}
 	if got.Username != "alice" {
 		t.Fatalf("非预期 user: %+v", got)
@@ -279,11 +277,11 @@ func TestListUsersForAdmin_FilterAndShowDeleted(t *testing.T) {
 	hashed, _ := bcrypt.GenerateFromPassword([]byte("abc12345"), bcrypt.DefaultCost)
 	u1 := model.User{Username: "alice", Password: string(hashed), Status: 1, Email: "a@example.com"}
 	u2 := model.User{Username: "bob", Password: string(hashed), Status: 1, Email: "b@example.com"}
-	_ = db.DB.Create(&u1).Error
-	_ = db.DB.Create(&u2).Error
-	_ = db.DB.Delete(&u2).Error
+	_ = testGormDB.Create(&u1).Error
+	_ = testGormDB.Create(&u2).Error
+	_ = testGormDB.Delete(&u2).Error
 
-	users, total, err := testService.AdminListUsers(moduledto.AdminUserListRequest{Page: 1, PageSize: 10, Keyword: "ali"})
+	users, total, err := testService.AdminListUsers(moduledto.UserListRequest{Page: 1, PageSize: 10, Keyword: "ali"})
 	if err != nil {
 		t.Fatalf("ListUsers: %v", err)
 	}
@@ -291,7 +289,7 @@ func TestListUsersForAdmin_FilterAndShowDeleted(t *testing.T) {
 		t.Fatalf("非预期: total=%d len=%d users=%v", total, len(users), users)
 	}
 
-	users2, total2, err := testService.AdminListUsers(moduledto.AdminUserListRequest{Page: 1, PageSize: 10, ShowDeleted: true})
+	users2, total2, err := testService.AdminListUsers(moduledto.UserListRequest{Page: 1, PageSize: 10, ShowDeleted: true})
 	if err != nil {
 		t.Fatalf("testService.ListUsers(showDeleted): %v", err)
 	}
@@ -304,13 +302,13 @@ func TestListUsersForAdmin_FilterAndShowDeleted(t *testing.T) {
 func TestCreateUserForAdmin_Validates(t *testing.T) {
 	setupTestDB(t)
 
-	user, err := testService.AdminCreateUser(moduledto.AdminCreateUserRequest{Username: "ab", Password: "abc12345"})
+	user, err := testService.CreateUser(moduledto.CreateUserRequest{Username: "ab", Password: "abc12345"}, true)
 	if user != nil {
 		t.Fatalf("期望 user=nil，实际为 %v", user)
 	}
 	assertServiceErrorCode(t, err, platformservice.ErrorCodeValidation)
 
-	user, err = testService.AdminCreateUser(moduledto.AdminCreateUserRequest{Username: "alice", Password: "short"})
+	user, err = testService.CreateUser(moduledto.CreateUserRequest{Username: "alice", Password: "short"}, true)
 	if user != nil {
 		t.Fatalf("期望 user=nil，实际为 %v", user)
 	}
@@ -321,10 +319,10 @@ func TestCreateUserForAdmin_Validates(t *testing.T) {
 func TestCreateUserForAdmin_AllowsReservedUsername(t *testing.T) {
 	setupTestDB(t)
 
-	user, err := testService.AdminCreateUser(moduledto.AdminCreateUserRequest{
+	user, err := testService.CreateUser(moduledto.CreateUserRequest{
 		Username: "admin",
 		Password: "abc12345",
-	})
+	}, true)
 	if err != nil || user == nil {
 		t.Fatalf("期望 success，实际为 user=%v err=%v", user, err)
 	}
@@ -342,14 +340,14 @@ func TestCreateUserForAdmin_SuccessOptions(t *testing.T) {
 	quota := int64(100)
 	status := 2
 
-	user, err := testService.AdminCreateUser(moduledto.AdminCreateUserRequest{
+	user, err := testService.CreateUser(moduledto.CreateUserRequest{
 		Username:      "alice_1",
 		Password:      "abc12345",
 		Email:         &email,
 		EmailVerified: &emailVerified,
 		StorageQuota:  &quota,
 		Status:        &status,
-	})
+	}, true)
 	if err != nil || user == nil {
 		t.Fatalf("期望 success，实际为 user=%v err=%v", user, err)
 	}
@@ -362,11 +360,11 @@ func TestCreateUserForAdmin_SuccessOptions(t *testing.T) {
 
 	// StorageQuota=-1 应设置为 nil。
 	q2 := int64(-1)
-	user2, err := testService.AdminCreateUser(moduledto.AdminCreateUserRequest{
+	user2, err := testService.CreateUser(moduledto.CreateUserRequest{
 		Username:     "alice_2",
 		Password:     "abc12345",
 		StorageQuota: &q2,
-	})
+	}, true)
 	if err != nil || user2 == nil {
 		t.Fatalf("期望 success，实际为 user=%v err=%v", user2, err)
 	}
@@ -375,93 +373,82 @@ func TestCreateUserForAdmin_SuccessOptions(t *testing.T) {
 	}
 }
 
-// 测试内容：验证管理员更新用户信息的准备与应用流程。
-func TestPrepareAndApplyUserUpdatesForAdmin(t *testing.T) {
+// 测试内容：验证管理员更新用户信息流程。
+func TestUpdateUserForAdmin(t *testing.T) {
 	setupTestDB(t)
 
 	hashed, _ := bcrypt.GenerateFromPassword([]byte("abc12345"), bcrypt.DefaultCost)
 	u := model.User{Username: "alice", Password: string(hashed), Status: 1, Email: "a@example.com"}
-	_ = db.DB.Create(&u).Error
+	_ = testGormDB.Create(&u).Error
 
 	newName := "alice2"
 	newStatus := 2
-	updates, err := testService.AdminPrepareUserUpdates(u.ID, moduledto.AdminUserUpdateRequest{Username: &newName, Status: &newStatus})
-	if err != nil {
-		t.Fatalf("AdminPrepareUserUpdates: err=%v", err)
-	}
-	if err := testService.AdminApplyUserUpdates(u.ID, updates); err != nil {
-		t.Fatalf("AdminApplyUserUpdates: %v", err)
+	if err := testService.UpdateUser(u.ID, moduledto.UpdateUserRequest{Username: &newName, Status: &newStatus}, true); err != nil {
+		t.Fatalf("UpdateUser: %v", err)
 	}
 
 	var got model.User
-	_ = db.DB.First(&got, u.ID).Error
+	_ = testGormDB.First(&got, u.ID).Error
 	if got.Username != "alice2" || got.Status != 2 {
 		t.Fatalf("非预期 user after update: %+v", got)
 	}
 }
 
-// 测试内容：验证管理员后台修改用户名时允许使用保留用户名。
-func TestPrepareAndApplyUserUpdatesForAdmin_AllowsReservedUsername(t *testing.T) {
+// 测试内容：验证管理员更新用户名时允许使用保留用户名。
+func TestUpdateUserForAdmin_AllowsReservedUsername(t *testing.T) {
 	setupTestDB(t)
 
 	hashed, _ := bcrypt.GenerateFromPassword([]byte("abc12345"), bcrypt.DefaultCost)
 	u := model.User{Username: "alice", Password: string(hashed), Status: 1, Email: "a@example.com"}
-	_ = db.DB.Create(&u).Error
+	_ = testGormDB.Create(&u).Error
 
 	newName := "admin"
-	updates, err := testService.AdminPrepareUserUpdates(u.ID, moduledto.AdminUserUpdateRequest{Username: &newName})
-	if err != nil {
-		t.Fatalf("AdminPrepareUserUpdates: err=%v", err)
-	}
-	if err := testService.AdminApplyUserUpdates(u.ID, updates); err != nil {
-		t.Fatalf("AdminApplyUserUpdates: %v", err)
+	if err := testService.UpdateUser(u.ID, moduledto.UpdateUserRequest{Username: &newName}, true); err != nil {
+		t.Fatalf("UpdateUser: %v", err)
 	}
 
 	var got model.User
-	_ = db.DB.First(&got, u.ID).Error
+	_ = testGormDB.First(&got, u.ID).Error
 	if got.Username != "admin" {
 		t.Fatalf("非预期 user after update: %+v", got)
 	}
 }
 
 // 测试内容：验证管理员更新用户的异常分支与密码/配额更新路径。
-func TestPrepareUserUpdatesForAdmin_MoreBranches(t *testing.T) {
+func TestUpdateUserForAdmin_MoreBranches(t *testing.T) {
 	setupTestDB(t)
 
 	hashed, _ := bcrypt.GenerateFromPassword([]byte("abc12345"), bcrypt.DefaultCost)
 	u := model.User{Username: "alice", Password: string(hashed), Status: 1, Email: "a@example.com"}
-	_ = db.DB.Create(&u).Error
+	_ = testGormDB.Create(&u).Error
 
 	// 无效状态
 	badStatus := 9
-	_, err := testService.AdminPrepareUserUpdates(u.ID, moduledto.AdminUserUpdateRequest{Status: &badStatus})
+	err := testService.UpdateUser(u.ID, moduledto.UpdateUserRequest{Status: &badStatus}, true)
 	assertServiceErrorCode(t, err, platformservice.ErrorCodeValidation)
 
 	// 无效配额
 	badQuota := int64(-2)
-	_, err = testService.AdminPrepareUserUpdates(u.ID, moduledto.AdminUserUpdateRequest{StorageQuota: &badQuota})
+	err = testService.UpdateUser(u.ID, moduledto.UpdateUserRequest{StorageQuota: &badQuota}, true)
 	assertServiceErrorCode(t, err, platformservice.ErrorCodeValidation)
 
 	// 邮箱已被占用
 	u2 := model.User{Username: "bobby", Password: string(hashed), Status: 1, Email: "taken@example.com"}
-	_ = db.DB.Create(&u2).Error
+	_ = testGormDB.Create(&u2).Error
 	newEmail := "taken@example.com"
-	_, err = testService.AdminPrepareUserUpdates(u.ID, moduledto.AdminUserUpdateRequest{Email: &newEmail})
+	err = testService.UpdateUser(u.ID, moduledto.UpdateUserRequest{Email: &newEmail}, true)
 	assertServiceErrorCode(t, err, platformservice.ErrorCodeConflict)
 
 	// 更新密码并清空配额（-1）
 	newPass := "abc123456"
 	clearQuota := int64(-1)
-	updates, err := testService.AdminPrepareUserUpdates(u.ID, moduledto.AdminUserUpdateRequest{Password: &newPass, StorageQuota: &clearQuota})
+	err = testService.UpdateUser(u.ID, moduledto.UpdateUserRequest{Password: &newPass, StorageQuota: &clearQuota}, true)
 	if err != nil {
 		t.Fatalf("期望 success，实际为 err=%v", err)
 	}
-	if err := testService.AdminApplyUserUpdates(u.ID, updates); err != nil {
-		t.Fatalf("apply: %v", err)
-	}
 
 	var got model.User
-	_ = db.DB.First(&got, u.ID).Error
+	_ = testGormDB.First(&got, u.ID).Error
 	if got.StorageQuota != nil {
 		t.Fatalf("期望 quota cleared，实际为 %+v", got.StorageQuota)
 	}
@@ -475,10 +462,10 @@ func TestIsUsernameTaken_IncludeDeleted(t *testing.T) {
 	setupTestDB(t)
 
 	u := model.User{Username: "alice", Password: "x", Status: 1, Email: "a@example.com"}
-	if err := db.DB.Create(&u).Error; err != nil {
+	if err := testGormDB.Create(&u).Error; err != nil {
 		t.Fatalf("创建用户失败: %v", err)
 	}
-	if err := db.DB.Delete(&u).Error; err != nil {
+	if err := testGormDB.Delete(&u).Error; err != nil {
 		t.Fatalf("soft delete user: %v", err)
 	}
 
@@ -505,10 +492,10 @@ func TestIsEmailTaken_ExcludeUserID(t *testing.T) {
 
 	u1 := model.User{Username: "a1", Password: "x", Status: 1, Email: "x@example.com"}
 	u2 := model.User{Username: "a2", Password: "x", Status: 1, Email: "y@example.com"}
-	if err := db.DB.Create(&u1).Error; err != nil {
+	if err := testGormDB.Create(&u1).Error; err != nil {
 		t.Fatalf("创建用户1失败: %v", err)
 	}
-	if err := db.DB.Create(&u2).Error; err != nil {
+	if err := testGormDB.Create(&u2).Error; err != nil {
 		t.Fatalf("创建用户2失败: %v", err)
 	}
 
@@ -537,7 +524,7 @@ func TestGetUserProfile(t *testing.T) {
 		StorageQuota: &q,
 		StorageUsed:  10,
 	}
-	_ = db.DB.Create(&u).Error
+	_ = testGormDB.Create(&u).Error
 
 	profile, err := testService.GetUserProfile(u.ID)
 	if err != nil {
@@ -548,42 +535,13 @@ func TestGetUserProfile(t *testing.T) {
 	}
 }
 
-// 测试内容：验证用户名更新的校验、冲突提示与成功后 token 生成。
-func TestUpdateUsernameAndGenerateToken(t *testing.T) {
-	setupTestDB(t)
-
-	hashed, _ := bcrypt.GenerateFromPassword([]byte("abc12345"), bcrypt.DefaultCost)
-	u := model.User{Username: "alice", Password: string(hashed), Status: 1, Email: "a@example.com"}
-	_ = db.DB.Create(&u).Error
-
-	token, err := testService.UpdateUsernameAndGenerateToken(u.ID, "ab", false)
-	if token != "" {
-		t.Fatalf("期望 token 为空，实际为 %q", token)
-	}
-	assertServiceErrorCode(t, err, platformservice.ErrorCodeValidation)
-
-	u2 := model.User{Username: "bobby", Password: string(hashed), Status: 1, Email: "b@example.com"}
-	_ = db.DB.Create(&u2).Error
-	_, err = testService.UpdateUsernameAndGenerateToken(u.ID, "bobby", false)
-	if serviceErr := assertServiceErrorCode(t, err, platformservice.ErrorCodeConflict); serviceErr.Message != "用户名已存在" {
-		t.Fatalf("期望 conflict message，实际为 %q", serviceErr.Message)
-	}
-
-	_, err = testService.UpdateUsernameAndGenerateToken(u.ID, "admin", false)
-	assertServiceErrorCode(t, err, platformservice.ErrorCodeValidation)
-
-	_, err = testService.UpdateUsernameAndGenerateToken(u.ID, "root", true)
-	assertServiceErrorCode(t, err, platformservice.ErrorCodeValidation)
-
-}
-
 // 测试内容：验证通过旧密码更新密码的校验与成功路径。
 func TestUpdatePasswordByOldPassword(t *testing.T) {
 	setupTestDB(t)
 
 	hashed, _ := bcrypt.GenerateFromPassword([]byte("abc12345"), bcrypt.DefaultCost)
 	u := model.User{Username: "alice", Password: string(hashed), Status: 1, Email: "a@example.com"}
-	_ = db.DB.Create(&u).Error
+	_ = testGormDB.Create(&u).Error
 
 	err := testService.UpdatePasswordByOldPassword(u.ID, "abc12345", "short")
 	assertServiceErrorCode(t, err, platformservice.ErrorCodeValidation)
@@ -599,8 +557,104 @@ func TestUpdatePasswordByOldPassword(t *testing.T) {
 	}
 
 	var got model.User
-	_ = db.DB.First(&got, u.ID).Error
+	_ = testGormDB.First(&got, u.ID).Error
 	if bcrypt.CompareHashAndPassword([]byte(got.Password), []byte("abc123456")) != nil {
 		t.Fatalf("期望 password to be updated")
+	}
+}
+
+// 测试内容：验证通用 CreateUser 在普通注册模式下不允许保留用户名。
+func TestCreateUser_CommonFlow_RejectsReservedUsernameForRegisterMode(t *testing.T) {
+	setupTestDB(t)
+
+	email := "alice@example.com"
+	user, err := testService.userService.CreateUser(moduledto.CreateUserRequest{
+		Username: "admin",
+		Password: "abc12345",
+		Email:    &email,
+	}, false)
+	if user != nil {
+		t.Fatalf("期望 user=nil，实际为 %v", user)
+	}
+	assertServiceErrorCode(t, err, platformservice.ErrorCodeValidation)
+}
+
+// 测试内容：验证 UpdateUser 在普通用户模式下不允许保留用户名。
+func TestUpdateUser_CommonFlow_RejectsReservedUsername(t *testing.T) {
+	setupTestDB(t)
+
+	hashed, _ := bcrypt.GenerateFromPassword([]byte("abc12345"), bcrypt.DefaultCost)
+	u := model.User{Username: "alice", Password: string(hashed), Status: 1, Email: "a@example.com"}
+	_ = testGormDB.Create(&u).Error
+
+	newName := "admin"
+	err := testService.UpdateUser(u.ID, moduledto.UpdateUserRequest{Username: &newName}, false)
+	assertServiceErrorCode(t, err, platformservice.ErrorCodeValidation)
+
+	var got model.User
+	_ = testGormDB.First(&got, u.ID).Error
+	if got.Username != "alice" {
+		t.Fatalf("期望用户名未被更新，实际为 %+v", got)
+	}
+}
+
+// 测试内容：验证 UpdateUser 成功后会清理用户认证缓存（状态缓存）。
+func TestUpdateUser_ClearsAuthCache_Status(t *testing.T) {
+	setupTestDB(t)
+
+	hashed, _ := bcrypt.GenerateFromPassword([]byte("abc12345"), bcrypt.DefaultCost)
+	u := model.User{Username: "alice", Password: string(hashed), Status: 1, Email: "a@example.com"}
+	if err := testGormDB.Create(&u).Error; err != nil {
+		t.Fatalf("create user failed: %v", err)
+	}
+
+	status, err := testService.userService.GetUserStatus(u.ID)
+	if err != nil || status != 1 {
+		t.Fatalf("warm status cache failed: status=%d err=%v", status, err)
+	}
+
+	if err := testGormDB.Model(&model.User{}).Where("id = ?", u.ID).Update("status", 2).Error; err != nil {
+		t.Fatalf("direct update status failed: %v", err)
+	}
+
+	newName := "alice_new"
+	if err := testService.UpdateUser(u.ID, moduledto.UpdateUserRequest{Username: &newName}, true); err != nil {
+		t.Fatalf("UpdateUser failed: %v", err)
+	}
+
+	status2, err := testService.userService.GetUserStatus(u.ID)
+	if err != nil {
+		t.Fatalf("GetUserStatus after update failed: %v", err)
+	}
+	if status2 != 2 {
+		t.Fatalf("期望状态缓存已清理并回源数据库得到 2，实际为 %d", status2)
+	}
+}
+
+// 测试内容：验证 SaveUser 成功后会清理管理员缓存。
+func TestSaveUser_ClearsAuthCache_Admin(t *testing.T) {
+	setupTestDB(t)
+
+	u := model.User{Username: "bob", Password: "x", Status: 1, Email: "b@example.com", Admin: false}
+	if err := testGormDB.Create(&u).Error; err != nil {
+		t.Fatalf("create user failed: %v", err)
+	}
+
+	isAdmin, err := testService.userService.GetUserAdmin(u.ID)
+	if err != nil || isAdmin {
+		t.Fatalf("warm admin cache failed: isAdmin=%v err=%v", isAdmin, err)
+	}
+
+	u.Admin = true
+	if err := testService.userService.SaveUser(&u); err != nil {
+		t.Fatalf("SaveUser failed: %v", err)
+	}
+
+	isAdmin2, err := testService.userService.GetUserAdmin(u.ID)
+	if err != nil {
+		t.Fatalf("GetUserAdmin after SaveUser failed: %v", err)
+	}
+	if !isAdmin2 {
+		t.Fatalf("期望管理员缓存已清理并回源数据库得到 true")
 	}
 }

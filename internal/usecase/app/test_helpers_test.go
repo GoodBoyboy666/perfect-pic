@@ -8,7 +8,11 @@ import (
 	"perfect-pic-server/internal/common"
 	"perfect-pic-server/internal/common/httpx"
 	"perfect-pic-server/internal/config"
+	"perfect-pic-server/internal/consts"
 	moduledto "perfect-pic-server/internal/dto"
+	"perfect-pic-server/internal/pkg/cache"
+	pkgmail "perfect-pic-server/internal/pkg/email"
+	jwtpkg "perfect-pic-server/internal/pkg/jwt"
 	"perfect-pic-server/internal/repository"
 	"perfect-pic-server/internal/service"
 	"perfect-pic-server/internal/testutils"
@@ -35,11 +39,16 @@ type appFixture struct {
 	passkeyUC      *PasskeyUseCase
 }
 
+var testGormDB *gorm.DB
+
 func setupAppFixture(t *testing.T) *appFixture {
 	t.Helper()
+	t.Setenv("PERFECT_PIC_SMTP_HOST", "127.0.0.1")
+	t.Setenv("PERFECT_PIC_SMTP_FROM", "noreply@example.com")
 	config.InitConfig("")
 
 	gdb := testutils.SetupDB(t)
+	testGormDB = gdb
 	userStore := repository.NewUserRepository(gdb)
 	imageStore := repository.NewImageRepository(gdb)
 	settingStore := repository.NewSettingRepository(gdb)
@@ -47,22 +56,31 @@ func setupAppFixture(t *testing.T) *appFixture {
 	passkeyStore := repository.NewPasskeyRepository(gdb)
 
 	dbConfig := config.NewDBConfig(settingStore)
+	staticConfig := config.NewStaticConfig()
+	tokenService := jwtpkg.NewJWT(config.NewJWTConfig(staticConfig))
+	cacheStore := cache.NewStore(nil, config.NewCacheConfig(staticConfig))
 	if err := dbConfig.InitializeSettings(); err != nil {
 		t.Fatalf("InitializeSettings failed: %v", err)
 	}
+	if err := settingStore.UpdateSettings([]repository.UpdateSettingItem{{
+		Key:   consts.ConfigEnableSMTP,
+		Value: "true",
+	}}, ""); err != nil {
+		t.Fatalf("enable smtp for tests failed: %v", err)
+	}
 	dbConfig.ClearCache()
 
-	authService := service.NewAuthService(dbConfig)
-	userService := service.NewUserService(userStore, dbConfig)
-	imageService := service.NewImageService(imageStore, dbConfig)
-	emailService := service.NewEmailService(dbConfig)
+	authService := service.NewAuthService(dbConfig, tokenService)
+	userService := service.NewUserService(userStore, dbConfig, cacheStore, tokenService)
+	imageService := service.NewImageService(imageStore, dbConfig, staticConfig)
+	emailService := service.NewEmailService(dbConfig, pkgmail.NewMailer(), staticConfig)
 	captchaService := service.NewCaptchaService(dbConfig)
 	initService := service.NewInitService(systemStore, dbConfig)
-	passkeyService := service.NewPasskeyService(passkeyStore, dbConfig)
+	passkeyService := service.NewPasskeyService(passkeyStore, dbConfig, cacheStore)
 
 	authUC := NewAuthUseCase(authService, userStore, userService, emailService, initService, dbConfig)
-	userUC := NewUserUseCase(userService, userStore, emailService, dbConfig)
-	imageUC := NewImageUseCase(imageService, userService, userStore, dbConfig)
+	userUC := NewUserUseCase(authService, userService, userStore, emailService, dbConfig)
+	imageUC := NewImageUseCase(imageService, userService, userStore, staticConfig, dbConfig)
 	passkeyUC := NewPasskeyUseCase(passkeyService, passkeyStore, authService, userStore)
 
 	return &appFixture{

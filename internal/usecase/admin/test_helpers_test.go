@@ -4,6 +4,9 @@ import (
 	"os"
 	"perfect-pic-server/internal/common"
 	"perfect-pic-server/internal/config"
+	"perfect-pic-server/internal/pkg/cache"
+	pkgmail "perfect-pic-server/internal/pkg/email"
+	jwtpkg "perfect-pic-server/internal/pkg/jwt"
 	"perfect-pic-server/internal/repository"
 	"perfect-pic-server/internal/service"
 	"perfect-pic-server/internal/testutils"
@@ -22,11 +25,14 @@ type adminFixture struct {
 	imageService *service.ImageService
 }
 
+var testGormDB *gorm.DB
+
 func setupAdminFixture(t *testing.T) *adminFixture {
 	t.Helper()
 	config.InitConfig("")
 
 	gdb := testutils.SetupDB(t)
+	testGormDB = gdb
 	userStore := repository.NewUserRepository(gdb)
 	imageStore := repository.NewImageRepository(gdb)
 	settingStore := repository.NewSettingRepository(gdb)
@@ -34,15 +40,18 @@ func setupAdminFixture(t *testing.T) *adminFixture {
 	systemStore := repository.NewSystemRepository(gdb)
 
 	dbConfig := config.NewDBConfig(settingStore)
+	staticConfig := config.NewStaticConfig()
+	tokenService := jwtpkg.NewJWT(config.NewJWTConfig(staticConfig))
+	cacheStore := cache.NewStore(nil, config.NewCacheConfig(staticConfig))
 	if err := dbConfig.InitializeSettings(); err != nil {
 		t.Fatalf("InitializeSettings failed: %v", err)
 	}
 	dbConfig.ClearCache()
 
-	userService := service.NewUserService(userStore, dbConfig)
-	imageService := service.NewImageService(imageStore, dbConfig)
-	passkeyService := service.NewPasskeyService(passkeyStore, dbConfig)
-	emailService := service.NewEmailService(dbConfig)
+	userService := service.NewUserService(userStore, dbConfig, cacheStore, tokenService)
+	imageService := service.NewImageService(imageStore, dbConfig, staticConfig)
+	passkeyService := service.NewPasskeyService(passkeyStore, dbConfig, cacheStore)
+	emailService := service.NewEmailService(dbConfig, pkgmail.NewMailer(), staticConfig)
 	_ = service.NewInitService(systemStore, dbConfig)
 
 	return &adminFixture{

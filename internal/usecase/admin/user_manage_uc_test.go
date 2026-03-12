@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"perfect-pic-server/internal/common"
-	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/model"
 	"strconv"
 	"testing"
@@ -17,7 +16,7 @@ func TestUserManageUseCase_AdminDeleteUser_SoftDelete(t *testing.T) {
 	f := setupAdminFixture(t)
 
 	u := model.User{Username: "alice", Password: "x", Status: 1, Email: "alice@example.com"}
-	if err := db.DB.Create(&u).Error; err != nil {
+	if err := testGormDB.Create(&u).Error; err != nil {
 		t.Fatalf("create user failed: %v", err)
 	}
 
@@ -26,7 +25,7 @@ func TestUserManageUseCase_AdminDeleteUser_SoftDelete(t *testing.T) {
 	}
 
 	var got model.User
-	if err := db.DB.Unscoped().First(&got, u.ID).Error; err != nil {
+	if err := testGormDB.Unscoped().First(&got, u.ID).Error; err != nil {
 		t.Fatalf("load deleted user failed: %v", err)
 	}
 	if got.Status != 3 {
@@ -49,7 +48,7 @@ func TestUserManageUseCase_AdminDeleteUser_HardDeleteCleansDataAndFiles(t *testi
 	chdirForTest(t, t.TempDir())
 
 	u := model.User{Username: "alice", Password: "x", Status: 1, Email: "alice@example.com"}
-	if err := db.DB.Create(&u).Error; err != nil {
+	if err := testGormDB.Create(&u).Error; err != nil {
 		t.Fatalf("create user failed: %v", err)
 	}
 
@@ -81,7 +80,7 @@ func TestUserManageUseCase_AdminDeleteUser_HardDeleteCleansDataAndFiles(t *testi
 		Width:      1,
 		Height:     1,
 	}
-	if err := db.DB.Create(&img).Error; err != nil {
+	if err := testGormDB.Create(&img).Error; err != nil {
 		t.Fatalf("create image record failed: %v", err)
 	}
 
@@ -90,7 +89,7 @@ func TestUserManageUseCase_AdminDeleteUser_HardDeleteCleansDataAndFiles(t *testi
 		CredentialID: "cred_admin_delete",
 		Credential:   `{"id":"cred_admin_delete"}`,
 	}
-	if err := db.DB.Create(&passkey).Error; err != nil {
+	if err := testGormDB.Create(&passkey).Error; err != nil {
 		t.Fatalf("create passkey failed: %v", err)
 	}
 
@@ -98,12 +97,12 @@ func TestUserManageUseCase_AdminDeleteUser_HardDeleteCleansDataAndFiles(t *testi
 		t.Fatalf("AdminDeleteUser hard failed: %v", err)
 	}
 
-	if err := db.DB.Unscoped().First(&model.User{}, u.ID).Error; !errors.Is(err, gorm.ErrRecordNotFound) {
+	if err := testGormDB.Unscoped().First(&model.User{}, u.ID).Error; !errors.Is(err, gorm.ErrRecordNotFound) {
 		t.Fatalf("expected user hard-deleted, got err=%v", err)
 	}
 
 	var imgCount int64
-	if err := db.DB.Unscoped().Model(&model.Image{}).Where("user_id = ?", u.ID).Count(&imgCount).Error; err != nil {
+	if err := testGormDB.Unscoped().Model(&model.Image{}).Where("user_id = ?", u.ID).Count(&imgCount).Error; err != nil {
 		t.Fatalf("count images failed: %v", err)
 	}
 	if imgCount != 0 {
@@ -111,7 +110,7 @@ func TestUserManageUseCase_AdminDeleteUser_HardDeleteCleansDataAndFiles(t *testi
 	}
 
 	var passkeyCount int64
-	if err := db.DB.Unscoped().Model(&model.PasskeyCredential{}).Where("user_id = ?", u.ID).Count(&passkeyCount).Error; err != nil {
+	if err := testGormDB.Unscoped().Model(&model.PasskeyCredential{}).Where("user_id = ?", u.ID).Count(&passkeyCount).Error; err != nil {
 		t.Fatalf("count passkeys failed: %v", err)
 	}
 	if passkeyCount != 0 {

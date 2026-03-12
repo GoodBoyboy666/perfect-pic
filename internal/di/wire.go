@@ -6,6 +6,13 @@ package di
 import (
 	"perfect-pic-server/internal/config"
 	"perfect-pic-server/internal/handler"
+	"perfect-pic-server/internal/middleware"
+	"perfect-pic-server/internal/pkg/cache"
+	"perfect-pic-server/internal/pkg/database"
+	pkgmail "perfect-pic-server/internal/pkg/email"
+	jwtpkg "perfect-pic-server/internal/pkg/jwt"
+	"perfect-pic-server/internal/pkg/ratelimit"
+	"perfect-pic-server/internal/pkg/redis"
 	"perfect-pic-server/internal/repository"
 	"perfect-pic-server/internal/router"
 	"perfect-pic-server/internal/service"
@@ -13,37 +20,24 @@ import (
 	"perfect-pic-server/internal/usecase/app"
 
 	"github.com/google/wire"
-	"gorm.io/gorm"
 )
 
-func InitializeApplication(gormDB *gorm.DB) (*Application, error) {
+func InitializeApplication() (*Application, error) {
 	wire.Build(
-		repository.NewUserRepository,
-		repository.NewImageRepository,
-		repository.NewSettingRepository,
-		repository.NewSystemRepository,
-		repository.NewPasskeyRepository,
+		config.StaticConfigSet,
 		config.NewDBConfig,
-		service.NewUserService,
-		service.NewImageService,
-		service.NewSettingsService,
-		service.NewAuthService,
-		service.NewEmailService,
-		service.NewCaptchaService,
-		service.NewInitService,
-		service.NewPasskeyService,
-		admin.NewUserManageUseCase,
-		admin.NewSettingsUseCase,
-		admin.NewStatUseCase,
-		app.NewAuthUseCase,
-		app.NewUserUseCase,
-		app.NewImageUseCase,
-		app.NewPasskeyUseCase,
-		handler.NewAuthHandler,
-		handler.NewSystemHandler,
-		handler.NewSettingsHandler,
-		handler.NewUserHandler,
-		handler.NewImageHandler,
+		database.NewGormDB,
+		redis.NewRedisClient,
+		jwtpkg.NewJWT,
+		cache.NewStore,
+		ratelimit.RateLimiter,
+		pkgmail.NewMailer,
+		repository.RepoSet,
+		service.ServiceSet,
+		admin.AdminUseCaseSet,
+		app.UseCaseSet,
+		middleware.MiddlewareSet,
+		handler.HandlerSet,
 		router.NewRouter,
 		NewApplication,
 	)

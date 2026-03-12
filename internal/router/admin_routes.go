@@ -1,7 +1,6 @@
 package router
 
 import (
-	"perfect-pic-server/internal/config"
 	"perfect-pic-server/internal/handler"
 	"perfect-pic-server/internal/middleware"
 
@@ -14,14 +13,15 @@ func registerAdminRoutes(
 	settingsHandler *handler.SettingsHandler,
 	userHandler *handler.UserHandler,
 	imageHandler *handler.ImageHandler,
-	dbConfig *config.DBConfig,
+	authMiddleware *middleware.AuthMiddleware,
+	bodyLimitMiddleware *middleware.BodyLimitMiddleware,
 ) {
 	adminGroup := api.Group("/admin")
-	adminGroup.Use(middleware.JWTAuth())
-	adminGroup.Use(middleware.UserStatusCheck())
-	adminGroup.Use(middleware.AdminCheck())
-	bodyLimit := middleware.BodyLimitMiddleware(dbConfig)
-	uploadBodyLimit := middleware.UploadBodyLimitMiddleware(dbConfig)
+	adminGroup.Use(authMiddleware.JWTAuth())
+	adminGroup.Use(authMiddleware.UserStatusCheck())
+	adminGroup.Use(authMiddleware.AdminCheck())
+	bodyLimit := bodyLimitMiddleware.BodyLimitMiddleware()
+	uploadBodyLimit := bodyLimitMiddleware.UploadBodyLimitMiddleware()
 
 	adminGroup.GET("/stats", systemHandler.GetServerStats)
 

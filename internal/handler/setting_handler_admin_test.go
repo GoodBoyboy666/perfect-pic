@@ -8,7 +8,6 @@ import (
 	moduledto "perfect-pic-server/internal/dto"
 	"testing"
 
-	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/model"
 
 	"github.com/gin-gonic/gin"
@@ -19,7 +18,7 @@ func TestGetAndUpdateSettingsHandlers(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	setupTestDB(t)
 
-	_ = db.DB.Create(&model.Setting{Key: "k1", Value: "v1"}).Error
+	_ = testGormDB.Create(&model.Setting{Key: "k1", Value: "v1"}).Error
 	testService.ClearCache()
 
 	r := gin.New()
@@ -40,7 +39,7 @@ func TestGetAndUpdateSettingsHandlers(t *testing.T) {
 	}
 
 	var s model.Setting
-	_ = db.DB.Where("key = ?", "k1").First(&s).Error
+	_ = testGormDB.Where("key = ?", "k1").First(&s).Error
 	if s.Value != "v2" {
 		t.Fatalf("期望 updated k1=v2，实际为 %q", s.Value)
 	}
@@ -62,8 +61,8 @@ func TestSendTestEmailHandler_InvalidEmail(t *testing.T) {
 	}
 }
 
-// 测试内容：验证 SMTP 主机缺失时发送测试邮件返回 500。
-func TestSendTestEmailHandler_SMTPMissingHostReturns500(t *testing.T) {
+// 测试内容：验证 SMTP 不可用（默认未开启）时发送测试邮件返回 500。
+func TestSendTestEmailHandler_SMTPUnavailableReturns500(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	setupTestDB(t)
 
@@ -115,7 +114,7 @@ func TestUpdateSettingHandler_EmptyValue(t *testing.T) {
 
 	// 确认它已正确保存到数据库中
 	var s model.Setting
-	if err := db.DB.Where("key = ?", "k3").First(&s).Error; err != nil {
+	if err := testGormDB.Where("key = ?", "k3").First(&s).Error; err != nil {
 		t.Fatalf("无法找到 k3: %v", err)
 	}
 	if s.Value != "" {

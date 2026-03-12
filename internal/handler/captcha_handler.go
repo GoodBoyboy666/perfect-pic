@@ -3,7 +3,7 @@ package handler
 import (
 	"net/http"
 	"perfect-pic-server/internal/consts"
-	"perfect-pic-server/internal/utils"
+	"perfect-pic-server/internal/pkg/captcha"
 
 	"github.com/gin-gonic/gin"
 )
@@ -63,7 +63,7 @@ func (h *AuthHandler) GetCaptchaImage(c *gin.Context) {
 		return
 	}
 
-	id, b64s, _, err := utils.MakeCaptcha()
+	id, b64s, _, err := captcha.MakeCaptcha()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "验证码生成失败"})
 		return

@@ -1,13 +1,18 @@
 package service
 
 import (
+	"encoding/json"
 	"mime/multipart"
-	"sync"
+	"strconv"
 	"testing"
+	"time"
 
 	"perfect-pic-server/internal/config"
 	moduledto "perfect-pic-server/internal/dto"
 	"perfect-pic-server/internal/model"
+	"perfect-pic-server/internal/pkg/cache"
+	pkgmail "perfect-pic-server/internal/pkg/email"
+	jwtpkg "perfect-pic-server/internal/pkg/jwt"
 	"perfect-pic-server/internal/repository"
 	"perfect-pic-server/internal/testutils"
 
@@ -16,6 +21,7 @@ import (
 
 var (
 	testService *Service
+	testGormDB  *gorm.DB
 )
 
 // Service 是测试专用聚合器，仅做服务层直连转发，不复制业务编排逻辑。
@@ -35,20 +41,24 @@ func setupTestDB(t *testing.T) *gorm.DB {
 	config.InitConfig("")
 
 	gdb := testutils.SetupDB(t)
+	testGormDB = gdb
 	userStore := repository.NewUserRepository(gdb)
 	imageStore := repository.NewImageRepository(gdb)
 	settingStore := repository.NewSettingRepository(gdb)
 	systemStore := repository.NewSystemRepository(gdb)
 	passkeyStore := repository.NewPasskeyRepository(gdb)
 	dbConfig := config.NewDBConfig(settingStore)
+	staticConfig := config.NewStaticConfig()
+	tokenService := jwtpkg.NewJWT(config.NewJWTConfig(staticConfig))
+	cacheStore := cache.NewStore(nil, config.NewCacheConfig(staticConfig))
 
-	authService := NewAuthService(dbConfig)
-	userService := NewUserService(userStore, dbConfig)
-	imageService := NewImageService(imageStore, dbConfig)
-	emailService := NewEmailService(dbConfig)
+	authService := NewAuthService(dbConfig, tokenService)
+	userService := NewUserService(userStore, dbConfig, cacheStore, tokenService)
+	imageService := NewImageService(imageStore, dbConfig, staticConfig)
+	emailService := NewEmailService(dbConfig, pkgmail.NewMailer(), staticConfig)
 	captchaService := NewCaptchaService(dbConfig)
 	initService := NewInitService(systemStore, dbConfig)
-	passkeyService := NewPasskeyService(passkeyStore, dbConfig)
+	passkeyService := NewPasskeyService(passkeyStore, dbConfig, cacheStore)
 
 	testService = &Service{
 		dbConfig:       dbConfig,
@@ -120,32 +130,20 @@ func (s *Service) BatchDeleteImages(images []model.Image) error {
 	return s.imageService.BatchDeleteImages(images)
 }
 
-func (s *Service) ListUserImages(params moduledto.UserImageListRequest) ([]model.Image, int64, int, int, error) {
-	return s.imageService.ListUserImages(params)
+func (s *Service) ListImages(params moduledto.ListImagesRequest) ([]model.Image, int64, int, int, error) {
+	return s.imageService.ListImages(params)
 }
 
 func (s *Service) GetUserImageCount(userID uint) (int64, error) {
 	return s.imageService.GetUserImageCount(userID)
 }
 
-func (s *Service) GetUserOwnedImage(imageID uint, userID uint) (*model.Image, error) {
-	return s.imageService.GetUserOwnedImage(imageID, userID)
+func (s *Service) GetImageByID(imageID uint, userID *uint) (*model.Image, error) {
+	return s.imageService.GetImageByID(imageID, userID)
 }
 
-func (s *Service) GetImagesByIDsForUser(ids []uint, userID uint) ([]model.Image, error) {
-	return s.imageService.GetImagesByIDsForUser(ids, userID)
-}
-
-func (s *Service) AdminGetImageByID(id uint) (*model.Image, error) {
-	return s.imageService.AdminGetImageByID(id)
-}
-
-func (s *Service) AdminGetImagesByIDs(ids []uint) ([]model.Image, error) {
-	return s.imageService.AdminGetImagesByIDs(ids)
-}
-
-func (s *Service) AdminListImages(params moduledto.AdminImageListRequest) ([]model.Image, int64, int, int, error) {
-	return s.imageService.AdminListImages(params)
+func (s *Service) GetImagesByIDs(ids []uint, userID *uint) ([]model.Image, error) {
+	return s.imageService.GetImagesByIDs(ids, userID)
 }
 
 func (s *Service) DeleteUserFiles(userID uint) error {
@@ -184,24 +182,24 @@ func (s *Service) GetSystemDefaultStorageQuota() int64 {
 	return s.userService.GetSystemDefaultStorageQuota()
 }
 
+func (s *Service) GetUserByID(id uint, includeDeleted bool) (*model.User, error) {
+	return s.userService.GetUserByID(id, includeDeleted)
+}
+
 func (s *Service) AdminGetUserDetail(id uint) (*model.User, error) {
-	return s.userService.AdminGetUserDetail(id)
+	return s.userService.GetUserByID(id, true)
 }
 
-func (s *Service) AdminListUsers(params moduledto.AdminUserListRequest) ([]model.User, int64, error) {
-	return s.userService.AdminListUsers(params)
+func (s *Service) AdminListUsers(params moduledto.UserListRequest) ([]model.User, int64, error) {
+	return s.userService.ListUsers(params)
 }
 
-func (s *Service) AdminCreateUser(input moduledto.AdminCreateUserRequest) (*model.User, error) {
-	return s.userService.AdminCreateUser(input)
+func (s *Service) CreateUser(input moduledto.CreateUserRequest, allowReservedUsername bool) (*model.User, error) {
+	return s.userService.CreateUser(input, allowReservedUsername)
 }
 
-func (s *Service) AdminPrepareUserUpdates(userID uint, req moduledto.AdminUserUpdateRequest) (map[string]interface{}, error) {
-	return s.userService.AdminPrepareUserUpdates(userID, req)
-}
-
-func (s *Service) AdminApplyUserUpdates(userID uint, updates map[string]interface{}) error {
-	return s.userService.AdminApplyUserUpdates(userID, updates)
+func (s *Service) UpdateUser(userID uint, req moduledto.UpdateUserRequest, allowReservedUsername bool) error {
+	return s.userService.UpdateUser(userID, req, allowReservedUsername)
 }
 
 func (s *Service) IsUsernameTaken(username string, excludeUserID *uint, includeDeleted bool) (bool, error) {
@@ -216,10 +214,6 @@ func (s *Service) GetUserProfile(userID uint) (*moduledto.UserProfileResponse, e
 	return s.userService.GetUserProfile(userID)
 }
 
-func (s *Service) UpdateUsernameAndGenerateToken(userID uint, newUsername string, isAdmin bool) (string, error) {
-	return s.userService.UpdateUsernameAndGenerateToken(userID, newUsername, isAdmin)
-}
-
 func (s *Service) UpdatePasswordByOldPassword(userID uint, oldPassword, newPassword string) error {
 	return s.userService.UpdatePasswordByOldPassword(userID, oldPassword, newPassword)
 }
@@ -228,21 +222,48 @@ func resetPasswordResetStore() {
 	if testService == nil || testService.userService == nil {
 		return
 	}
-	clearSyncMap(&testService.userService.passwordResetStore)
-	clearSyncMap(&testService.userService.passwordResetTokenStore)
+	testService.userService.resetTokenCachesForTest()
 }
 
 func resetEmailChangeStore() {
 	if testService == nil || testService.userService == nil {
 		return
 	}
-	clearSyncMap(&testService.userService.emailChangeStore)
-	clearSyncMap(&testService.userService.emailChangeTokenStore)
+	testService.userService.resetTokenCachesForTest()
 }
 
-func clearSyncMap(store *sync.Map) {
-	store.Range(func(key, _ interface{}) bool {
-		store.Delete(key)
-		return true
+func ttlForLocalToken(expiresAt time.Time) time.Duration {
+	ttl := time.Until(expiresAt)
+	if ttl <= 0 {
+		return -time.Nanosecond
+	}
+	return ttl
+}
+
+func (s *UserService) resetTokenCachesForTest() {
+	if s.cache != nil {
+		s.cache.ClearLocal()
+	}
+}
+
+func (s *UserService) putEmailChangeTokenLocalForTest(token moduledto.EmailChangeToken) {
+	if s.cache == nil {
+		return
+	}
+
+	payload, err := json.Marshal(moduledto.EmailChangeRedisPayload{
+		UserID:   token.UserID,
+		OldEmail: token.OldEmail,
+		NewEmail: token.NewEmail,
 	})
+	if err != nil {
+		return
+	}
+
+	s.cache.SetIndexed(
+		s.cache.RedisKey("email_change", "user", strconv.FormatUint(uint64(token.UserID), 10)),
+		s.cache.RedisKey("email_change", "token", token.Token),
+		string(payload),
+		ttlForLocalToken(token.ExpiresAt),
+	)
 }

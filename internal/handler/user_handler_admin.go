@@ -2,10 +2,10 @@ package handler
 
 import (
 	"log"
+	"math"
 	"net/http"
 	"perfect-pic-server/internal/common/httpx"
 	moduledto "perfect-pic-server/internal/dto"
-	"perfect-pic-server/internal/middleware"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -28,7 +28,7 @@ func (h *UserHandler) GetUserList(c *gin.Context) {
 		pageSize = 10
 	}
 
-	users, total, err := h.userService.AdminListUsers(moduledto.AdminUserListRequest{
+	users, total, err := h.userService.ListUsers(moduledto.UserListRequest{
 		Page:        page,
 		PageSize:    pageSize,
 		Keyword:     keyword,
@@ -51,13 +51,13 @@ func (h *UserHandler) GetUserList(c *gin.Context) {
 // GetUserDetail 获取指定用户信息
 func (h *UserHandler) GetUserDetail(c *gin.Context) {
 	idStr := c.Param("id")
-	id, err := strconv.Atoi(idStr)
-	if err != nil {
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil || id > math.MaxUint {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的用户ID"})
 		return
 	}
 
-	user, err := h.userService.AdminGetUserDetail(uint(id))
+	user, err := h.userService.GetUserByID(uint(id), true)
 	if err != nil {
 		httpx.WriteServiceError(c, err, "获取用户失败")
 		return
@@ -74,7 +74,7 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 		return
 	}
 
-	user, err := h.userService.AdminCreateUser(moduledto.AdminCreateUserRequest(req))
+	user, err := h.userService.CreateUser(req, true)
 	if err != nil {
 		httpx.WriteServiceError(c, err, "创建用户失败")
 		return
@@ -86,8 +86,8 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 // UpdateUser 修改用户信息
 func (h *UserHandler) UpdateUser(c *gin.Context) {
 	idStr := c.Param("id")
-	id, err := strconv.Atoi(idStr)
-	if err != nil {
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil || id > math.MaxUint {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的用户ID"})
 		return
 	}
@@ -98,20 +98,12 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 		return
 	}
 
-	updates, err := h.userService.AdminPrepareUserUpdates(uint(id), moduledto.AdminUserUpdateRequest(req))
-	if err != nil {
+	if err := h.userManageUseCase.UpdateUser(uint(id), req); err != nil {
 		httpx.WriteServiceError(c, err, "更新用户失败")
 		return
 	}
-
-	if len(updates) > 0 {
-		if err := h.userService.AdminApplyUserUpdates(uint(id), updates); err != nil {
-			httpx.WriteServiceError(c, err, "更新用户失败")
-			return
-		}
-		// 清除用户状态缓存
-		middleware.ClearUserStatusCache(uint(id))
-	}
+	// 清除用户状态缓存
+	h.userService.ClearUserStatusCache(uint(id))
 
 	c.JSON(http.StatusOK, gin.H{"message": "更新成功"})
 }
@@ -119,8 +111,8 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 // UpdateUserAvatar 更新用户头像
 func (h *UserHandler) UpdateUserAvatar(c *gin.Context) {
 	idStr := c.Param("id")
-	id, err := strconv.Atoi(idStr)
-	if err != nil {
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil || id > math.MaxUint {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的用户ID"})
 		return
 	}
@@ -138,7 +130,7 @@ func (h *UserHandler) UpdateUserAvatar(c *gin.Context) {
 	}
 	_ = ext
 
-	user, err := h.userService.AdminGetUserDetail(uint(id))
+	user, err := h.userService.GetUserByID(uint(id), true)
 	if err != nil {
 		httpx.WriteServiceError(c, err, "获取用户失败")
 		return
@@ -157,13 +149,13 @@ func (h *UserHandler) UpdateUserAvatar(c *gin.Context) {
 // RemoveUserAvatar 移除用户头像
 func (h *UserHandler) RemoveUserAvatar(c *gin.Context) {
 	idStr := c.Param("id")
-	id, err := strconv.Atoi(idStr)
-	if err != nil {
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil || id > math.MaxUint {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的用户ID"})
 		return
 	}
 
-	user, err := h.userService.AdminGetUserDetail(uint(id))
+	user, err := h.userService.GetUserByID(uint(id), true)
 	if err != nil {
 		httpx.WriteServiceError(c, err, "获取用户失败")
 		return
@@ -181,9 +173,24 @@ func (h *UserHandler) RemoveUserAvatar(c *gin.Context) {
 // DeleteUser 删除用户
 func (h *UserHandler) DeleteUser(c *gin.Context) {
 	idStr := c.Param("id")
-	id, err := strconv.Atoi(idStr)
-	if err != nil {
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil || id > math.MaxUint {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的用户ID"})
+		return
+	}
+
+	actorIDRaw, exists := c.Get("id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "获取用户ID失败"})
+		return
+	}
+	actorID, ok := actorIDRaw.(uint)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "获取用户ID失败"})
+		return
+	}
+	if actorID == uint(id) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "不能删除自身"})
 		return
 	}
 
@@ -195,7 +202,7 @@ func (h *UserHandler) DeleteUser(c *gin.Context) {
 	}
 
 	// 清除用户状态缓存
-	middleware.ClearUserStatusCache(uint(id))
+	h.userService.ClearUserStatusCache(uint(id))
 
 	c.JSON(http.StatusOK, gin.H{"message": "删除成功"})
 }

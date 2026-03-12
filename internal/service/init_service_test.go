@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"perfect-pic-server/internal/consts"
-	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/model"
 
 	"golang.org/x/crypto/bcrypt"
@@ -42,13 +41,13 @@ func TestInitializeSystemAndIsSystemInitialized(t *testing.T) {
 	}
 
 	var s model.Setting
-	_ = db.DB.Where("key = ?", consts.ConfigSiteName).First(&s).Error
+	_ = testGormDB.Where("key = ?", consts.ConfigSiteName).First(&s).Error
 	if s.Value != "MySite" {
 		t.Fatalf("期望 site name updated，实际为 %q", s.Value)
 	}
 
 	var u model.User
-	if err := db.DB.Where("username = ?", "admin_1").First(&u).Error; err != nil {
+	if err := testGormDB.Where("username = ?", "admin_1").First(&u).Error; err != nil {
 		t.Fatalf("期望 admin user created: %v", err)
 	}
 	if !u.Admin {
@@ -79,7 +78,7 @@ func TestInitializeSystem_AllowsReservedAdminUsername(t *testing.T) {
 	}
 
 	var u model.User
-	if err := db.DB.Where("username = ?", "admin").First(&u).Error; err != nil {
+	if err := testGormDB.Where("username = ?", "admin").First(&u).Error; err != nil {
 		t.Fatalf("期望 admin 用户创建成功: %v", err)
 	}
 	if !u.Admin {
@@ -146,7 +145,7 @@ func TestInitializeSystem_ConcurrentOnlyOneSucceeds(t *testing.T) {
 	}
 
 	var adminCount int64
-	if err := db.DB.Model(&model.User{}).Where("admin = ?", true).Count(&adminCount).Error; err != nil {
+	if err := testGormDB.Model(&model.User{}).Where("admin = ?", true).Count(&adminCount).Error; err != nil {
 		t.Fatalf("统计管理员数量失败: %v", err)
 	}
 	if adminCount != 1 {
@@ -154,7 +153,7 @@ func TestInitializeSystem_ConcurrentOnlyOneSucceeds(t *testing.T) {
 	}
 
 	var allowInit model.Setting
-	if err := db.DB.Where("key = ?", consts.ConfigAllowInit).First(&allowInit).Error; err != nil {
+	if err := testGormDB.Where("key = ?", consts.ConfigAllowInit).First(&allowInit).Error; err != nil {
 		t.Fatalf("查询 allow_init 失败: %v", err)
 	}
 	if allowInit.Value != "false" {

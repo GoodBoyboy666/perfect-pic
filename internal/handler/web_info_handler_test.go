@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"perfect-pic-server/internal/consts"
-	"perfect-pic-server/internal/db"
 	"perfect-pic-server/internal/model"
 
 	"github.com/gin-gonic/gin"
@@ -18,10 +17,10 @@ func TestGetWebInfo_ReturnsAllowedKeys(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	setupTestDB(t)
 
-	_ = db.DB.Save(&model.Setting{Key: consts.ConfigSiteName, Value: "MySite"}).Error
-	_ = db.DB.Save(&model.Setting{Key: consts.ConfigSiteDescription, Value: "Desc"}).Error
-	_ = db.DB.Save(&model.Setting{Key: consts.ConfigSiteLogo, Value: "logo.png"}).Error
-	_ = db.DB.Save(&model.Setting{Key: consts.ConfigSiteFavicon, Value: "favicon.ico"}).Error
+	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigSiteName, Value: "MySite"}).Error
+	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigSiteDescription, Value: "Desc"}).Error
+	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigSiteLogo, Value: "logo.png"}).Error
+	_ = testGormDB.Save(&model.Setting{Key: consts.ConfigSiteFavicon, Value: "favicon.ico"}).Error
 	testService.ClearCache()
 
 	r := gin.New()

@@ -74,8 +74,8 @@ type RedisConfig struct {
 	Prefix   string `mapstructure:"prefix"`
 }
 
-// Get 获取当前配置的快照（高性能无锁）
-func Get() Config {
+// get 获取当前配置的快照（高性能无锁）
+func get() Config {
 	val := appConfig.Load()
 	if val == nil {
 		return Config{}
@@ -201,7 +201,7 @@ func loadAndStore(v *viper.Viper) {
 
 func enforceJWTSecretSafety() {
 	// 首次启动安全检查：如果是 release 模式，拦截不安全的 JWT Secret
-	curr := Get()
+	curr := get()
 	if curr.Server.Mode == "release" {
 		if curr.JWT.Secret == "" || curr.JWT.Secret == "perfect_pic_secret" {
 			log.Fatal("❌ [安全严重错误] 生产模式(release)下必须设置安全的 JWT Secret！\n请设置环境变量 PERFECT_PIC_JWT_SECRET 或在配置文件中指定 jwt.secret")
