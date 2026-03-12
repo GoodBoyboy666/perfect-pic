@@ -25,7 +25,10 @@ jobs:
 
       - name: 处理镜像名称 (转小写)
         run: |
-          echo "IMAGE_NAME_LOWER=${IMAGE_NAME,,}" >> $GITHUB_ENV
+          REPO_LOWER="${IMAGE_NAME,,}"
+          echo "IMAGE_NAME_LOWER=${REPO_LOWER}" >> $GITHUB_ENV
+          # 兼容旧镜像名
+          echo "OLD_IMAGE_NAME_LOWER=${REPO_LOWER}-server" >> $GITHUB_ENV
 
       - name: 准备构建参数
         id: prep
@@ -42,12 +45,8 @@ jobs:
           # 判断是否为预发布版本 (-beta 或 -rc)
           if [[ $VERSION == *"-beta"* ]] || [[ $VERSION == *"-rc"* ]]; then
             echo "IS_PRERELEASE=true" >> $GITHUB_OUTPUT
-            # 如果是 Beta 版后端，前端默认使用 beta 分支
-            echo "FRONTEND_REF=origin/beta" >> $GITHUB_OUTPUT
           else
             echo "IS_PRERELEASE=false" >> $GITHUB_OUTPUT
-            # 如果是正式版后端，前端默认使用同名 Tag
-            echo "FRONTEND_REF=${VERSION}" >> $GITHUB_OUTPUT
           fi
 
       - name: 登录到 GitHub Container Registry
@@ -61,7 +60,9 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}
+          images: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}
+            ${{ env.REGISTRY }}/${{ env.OLD_IMAGE_NAME_LOWER }}
           tags: |
             # 自动生成语义化版本标签 (type=semver)
             type=semver,pattern={{version}}
@@ -88,7 +89,6 @@ jobs:
             APP_VERSION=${{ steps.prep.outputs.VERSION }}
             BUILD_TIME=${{ steps.prep.outputs.BUILD_TIME }}
             GIT_COMMIT=${{ github.sha }}
-            FRONTEND_REF=${{ steps.prep.outputs.FRONTEND_REF }}
           # 使用 GitHub Actions 缓存加速构建
           cache-from: type=gha
           cache-to: type=gha,mode=max

@@ -1,6 +1,6 @@
 services:
   perfect-pic:
-    image: ghcr.io/goodboyboy666/perfect-pic-server:latest
+    image: ghcr.io/goodboyboy666/perfect-pic:latest
     container_name: perfect-pic
     ports:
       - "8080:8080"

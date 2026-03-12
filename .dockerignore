@@ -13,7 +13,8 @@ vendor/
 logs/
 uploads/
 frontend/
-web-source/
+web/node_modules
+web/dist
 
 # Files
 .DS_Store
