@@ -1,43 +1,52 @@
-# 第一阶段：构建前端
-FROM node:20-alpine AS frontend-builder
-
-ARG FRONTEND_REPO="https://github.com/GoodBoyboy666/perfect-pic-web.git"
-ARG FRONTEND_REF="origin/beta"
+# 定义全局 ARG，供所有构建阶段使用
 ARG APP_VERSION="v0.0.0-docker"
 ARG BUILD_TIME="unknown"
+ARG GIT_COMMIT="unknown"
 
-WORKDIR /web-source
+# ==========================================
+# 第一阶段：构建前端
+# ==========================================
 
-# 安装 git
-RUN apk add --no-cache git
+FROM node:20-alpine AS frontend-builder
 
-# 克隆并检出代码
-RUN git clone ${FRONTEND_REPO} . && \
-    git fetch --all --tags && \
-    git checkout ${FRONTEND_REF}
+# 引入全局 ARG
+ARG APP_VERSION
+ARG BUILD_TIME
+ARG GIT_COMMIT
 
-# 保存前端哈希值供后端阶段使用
-RUN git rev-parse --short HEAD > /frontend_hash.txt
+WORKDIR /web
+
+# 启用 pnpm
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+# 复制依赖配置文件
+COPY web/package.json web/pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
+
+# 复制前端的所有源码
+COPY web/ ./
 
 # 设置 Vite 构建所需的环境变量
+# 直接使用当前仓库的 GIT_COMMIT 作为前端的 Hash
 ENV VITE_APP_VERSION=${APP_VERSION}
 ENV VITE_BUILD_TIME=${BUILD_TIME}
+ENV VITE_UI_HASH=${GIT_COMMIT}
 
-# 安装依赖并构建
-# 在构建前动态设置 VITE_UI_HASH
-RUN corepack enable && corepack prepare pnpm@latest --activate && \
-    pnpm install --frozen-lockfile && \
-    export VITE_UI_HASH=$(cat /frontend_hash.txt) && \
-    pnpm build
+# 构建前端产物 (默认输出到 /web/dist)
+RUN pnpm build
 
+# ==========================================
 # 第二阶段：构建后端
+# ==========================================
+
 FROM golang:1.25-alpine AS backend-builder
 
 WORKDIR /app
 
-ARG APP_VERSION="v0.0.0-docker"
-ARG BUILD_TIME="unknown"
-ARG GIT_COMMIT="unknown"
+# 引入全局 ARG
+ARG APP_VERSION
+ARG BUILD_TIME
+ARG GIT_COMMIT
 
 # 安装 git (为了下载依赖)
 RUN apk add --no-cache git
@@ -54,24 +63,24 @@ COPY . .
 RUN /go/bin/wire ./internal/di
 
 # 复制构建好的前端资源
-# 注意：我们将构建产物直接复制到 frontend 目录，这与 build.sh 中的逻辑一致
-COPY --from=frontend-builder /web-source/dist ./frontend
-COPY --from=frontend-builder /frontend_hash.txt ./frontend_hash.txt
+COPY --from=frontend-builder /web/dist ./frontend
 
 # 构建后端
 # 使用 -tags embed 启用嵌入功能
 # 从文件可以直接读取前端版本号注入到 ldflags 中
-RUN FRONTEND_VER=$(cat frontend_hash.txt) && \
-    CGO_ENABLED=0 GOOS=linux go build \
+RUN CGO_ENABLED=0 GOOS=linux go build \
     -tags embed \
     -ldflags "-s -w \
     -X 'main.AppVersion=${APP_VERSION}' \
     -X 'main.BuildTime=${BUILD_TIME}' \
     -X 'main.GitCommit=${GIT_COMMIT}' \
-    -X 'main.FrontendVer=${FRONTEND_VER}'" \
-    -o perfect-pic-server .
+    -X 'main.FrontendVer=${GIT_COMMIT}'" \
+    -o perfect-pic .
 
+# ==========================================
 # 第三阶段：最终运行时镜像
+# ==========================================
+
 FROM alpine:latest
 
 WORKDIR /app
@@ -80,7 +89,7 @@ WORKDIR /app
 RUN apk add --no-cache tzdata ca-certificates
 
 # 从构建阶段复制二进制文件
-COPY --from=backend-builder /app/perfect-pic-server .
+COPY --from=backend-builder /app/perfect-pic .
 
 # 创建常用目录
 RUN mkdir -p /data/config /data/database /app/uploads/imgs /app/uploads/avatars
@@ -91,4 +100,4 @@ ENV PERFECT_PIC_DATABASE_FILENAME=/data/database/perfect_pic.db
 EXPOSE 8080
 
 # 运行
-ENTRYPOINT ["./perfect-pic-server", "--config-dir", "/data/config"]
+ENTRYPOINT ["./perfect-pic", "--config-dir", "/data/config"]

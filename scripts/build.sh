@@ -3,11 +3,11 @@
 # 设置脚本在遇到错误时退出
 set -e
 
-# 进入项目根目录 (假设脚本在 script/ 目录下)
+# 进入项目根目录 (假设脚本在 scripts/ 目录下)
 cd "$(dirname "$0")/.."
 
 echo -e "\033[36m=========================================="
-echo -e "    🛠️  Perfect Pic Server 构建脚本  📦"
+echo -e "    🛠️  Perfect Pic 构建脚本  📦"
 echo -e "==========================================\033[0m"
 
 # 0. 选择构建类型与目标平台
@@ -110,70 +110,18 @@ GIT_COMMIT=$(git rev-parse HEAD)
 
 echo "  📌 构建版本: $BUILD_VERSION"
 echo "  🕒 构建时间: $BUILD_TIME"
+echo "  🔖 Git Hash: $GIT_COMMIT"
 
-# 3-6. 前端流程 (仅 Embed 版)
+# 3. 前端流程 (仅 Embed 版)
 if [ "$BUILD_EMBED" = true ]; then
-    # 3. 拉取前端代码
-    echo -e "\n\033[33m[Step] 📥 准备前端代码...\033[0m"
-    FRONTEND_REPO_URL="https://github.com/GoodBoyboy666/perfect-pic-web.git"
-    WEB_DIR="web-source"
+    echo -e "\n\033[33m[Step] 🏗️  编译本地前端...\033[0m"
+    
+    # 进入单体仓库的前端目录
+    cd web
 
-    if [ -d "$WEB_DIR" ]; then
-        echo "  ℹ️  目录 '$WEB_DIR' 已存在，正在更新..."
-        cd "$WEB_DIR"
-        git fetch --all --tags
-        cd ..
-    else
-        echo "  ℹ️  正在克隆前端仓库..."
-        git clone "$FRONTEND_REPO_URL" "$WEB_DIR"
-    fi
-
-    # 4. 询问构建版本
-    echo -e "\n\033[33m[Step] 🎯 确定前端版本...\033[0m"
-    cd "$WEB_DIR"
-
-    HAS_SAME_TAG=false
-    if git show-ref --tags --quiet refs/tags/"$BUILD_VERSION" 2>/dev/null; then
-        HAS_SAME_TAG=true
-    fi
-
-    FRONTEND_REF=""
-    if [ "$HAS_SAME_TAG" = true ]; then
-        echo -e "  👀 发现前端仓库存在同名 tag: \033[36m$BUILD_VERSION\033[0m"
-        read -p "  👉 是否使用该 tag? (Y/n) [默认 Y]: " USE_SAME_TAG
-        USE_SAME_TAG=${USE_SAME_TAG:-Y}
-        if [[ "$USE_SAME_TAG" =~ ^[Yy]$ ]]; then
-            FRONTEND_REF="$BUILD_VERSION"
-        fi
-    fi
-
-    if [ -z "$FRONTEND_REF" ]; then
-        echo "  👇 请输入要使用的前端版本 (分支名/Tag/Commit Hash)"
-        read -p "  👉 (直接回车使用 beta 分支最新代码): " USER_INPUT
-        if [ -z "$USER_INPUT" ]; then
-            FRONTEND_REF="origin/beta"
-            echo "  ℹ️  使用默认: beta 分支最新代码"
-        else
-            FRONTEND_REF="$USER_INPUT"
-        fi
-    fi
-
-    echo "  🔄 正在签出前端版本: $FRONTEND_REF"
-    if ! git checkout "$FRONTEND_REF"; then
-        echo -e "  \033[31m❌ 前端签出失败，请检查版本号是否正确。\033[0m"
-        exit 1
-    fi
-
-    FRONTEND_HASH=$(git rev-parse --short HEAD)
-    echo -e "  ✅ 前端 Commit Hash: \033[32m$FRONTEND_HASH\033[0m"
-    cd ..
-
-    # 5. 编译前端
-    echo -e "\n\033[33m[Step] 🏗️  编译前端...\033[0m"
-    cd "$WEB_DIR"
-
+    # 注入全局变量（UI Hash 直接使用当前 Git Commit）
     export VITE_APP_VERSION="$BUILD_VERSION"
-    export VITE_UI_HASH="$FRONTEND_HASH"
+    export VITE_UI_HASH="$GIT_COMMIT"
     export VITE_BUILD_TIME="$BUILD_TIME"
 
     echo "  📦 使用 pnpm 安装依赖..."
@@ -183,22 +131,22 @@ if [ "$BUILD_EMBED" = true ]; then
 
     cd ..
 
-    # 6. 复制前端产物
-    echo -e "\n\033[33m[Step] 📋 复制前端产物...\033[0m"
+    echo -e "\n\033[33m[Step] 📋 准备前端静态资源...\033[0m"
     FRONTEND_DEST="frontend"
 
-    rm -rf "$FRONTEND_DEST"/*
+    # 安全清理并创建目录
     mkdir -p "$FRONTEND_DEST"
+    rm -rf "${FRONTEND_DEST:?}/"*
 
-    cp -r "$WEB_DIR/dist/"* "$FRONTEND_DEST/"
+    # 拷贝产物供 Go Embed 使用
+    cp -r web/dist/* "$FRONTEND_DEST/"
     touch "$FRONTEND_DEST/.keep"
-    echo -e "  ✅ 前端产物已复制到 $FRONTEND_DEST 目录"
+    echo -e "  ✅ 前端产物已嵌入 $FRONTEND_DEST 目录"
 else
-    FRONTEND_HASH=""
-    echo -e "\n\033[33m[Step] 📦 非 Embed 版本，跳过前端拉取/构建...\033[0m"
+    echo -e "\n\033[33m[Step] 📦 非 Embed 版本，跳过前端构建...\033[0m"
 fi
 
-# 7. 编译后端
+# 4. 编译后端
 echo -e "\n\033[33m[Step] 🚀 编译后端...\033[0m"
 
 LDFLAGS_COMMON="-s -w -X 'main.AppVersion=$BUILD_VERSION' -X 'main.BuildTime=$BUILD_TIME' -X 'main.GitCommit=$GIT_COMMIT'"
@@ -207,12 +155,13 @@ OUTPUT_DIR="bin"
 mkdir -p "$OUTPUT_DIR"
 
 if [ "$BUILD_EMBED" = true ]; then
-    LDFLAGS="$LDFLAGS_COMMON -X 'main.FrontendVer=$FRONTEND_HASH'"
+    # Embed 模式下，FrontendVer 也直接使用全局 Git Commit
+    LDFLAGS="$LDFLAGS_COMMON -X 'main.FrontendVer=$GIT_COMMIT'"
     BUILD_TAGS="-tags embed"
-    OUTPUT_NAME="perfect-pic-server-$BUILD_VERSION-embed-$TARGET_OS-$TARGET_ARCH"
+    OUTPUT_NAME="perfect-pic-$BUILD_VERSION-embed-$TARGET_OS-$TARGET_ARCH"
 else
     LDFLAGS="$LDFLAGS_COMMON"
-    OUTPUT_NAME="perfect-pic-server-$BUILD_VERSION-$TARGET_OS-$TARGET_ARCH"
+    OUTPUT_NAME="perfect-pic-$BUILD_VERSION-$TARGET_OS-$TARGET_ARCH"
 fi
 
 if [ "$TARGET_OS" = "windows" ]; then
@@ -226,7 +175,7 @@ GOOS="$TARGET_OS" GOARCH="$TARGET_ARCH" go build $BUILD_TAGS -ldflags "$LDFLAGS"
 
 echo -e "  \033[32m✅ 后端构建成功!\033[0m"
 
-# 8. 完成
+# 5. 完成
 echo -e "\n\033[32m[Done] 🎉 构建完成!\033[0m"
 echo -e "  📂 产物位置: \033[36m$OUTPUT_DIR\033[0m"
 
