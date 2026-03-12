@@ -118,4 +118,4 @@ pnpm run dev
 
 ## 📄 许可证
 
-参与本项目即表示你同意你的贡献将遵循项目的 [LICENSE](https://www.google.com/search?q=LICENSE) 协议。
+参与本项目即表示你同意你的贡献将遵循项目的 [LICENSE](LICENSE) 协议。
