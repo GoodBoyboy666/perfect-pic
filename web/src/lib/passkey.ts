@@ -333,7 +333,7 @@ export function toPublicKeyCreationOptions(
 
   if (isRecord(optionsSource.extensions)) {
     options.extensions =
-      optionsSource.extensions as AuthenticationExtensionsClientInputs
+      optionsSource.extensions
   }
 
   return options
@@ -380,7 +380,7 @@ export function toPublicKeyRequestOptions(
 
   if (isRecord(optionsSource.extensions)) {
     options.extensions =
-      optionsSource.extensions as AuthenticationExtensionsClientInputs
+      optionsSource.extensions
   }
 
   return options
