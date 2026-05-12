@@ -332,8 +332,7 @@ export function toPublicKeyCreationOptions(
   }
 
   if (isRecord(optionsSource.extensions)) {
-    options.extensions =
-      optionsSource.extensions
+    options.extensions = optionsSource.extensions
   }
 
   return options
@@ -379,8 +378,7 @@ export function toPublicKeyRequestOptions(
   }
 
   if (isRecord(optionsSource.extensions)) {
-    options.extensions =
-      optionsSource.extensions
+    options.extensions = optionsSource.extensions
   }
 
   return options
