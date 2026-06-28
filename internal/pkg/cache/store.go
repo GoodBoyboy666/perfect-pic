@@ -140,6 +140,22 @@ func (s *Store) trySetRedis(key, value string, ttl time.Duration) bool {
 	return s.redisClient.Set(ctx, key, value, ttl).Err() == nil
 }
 
+var setIndexedScript = redis.NewScript(`
+	local indexKey = KEYS[1]
+	local valueKey = ARGV[1]
+	local value = ARGV[2]
+	local ttl = tonumber(ARGV[3])
+
+	local oldValueKey = redis.call('GET', indexKey)
+	if oldValueKey and oldValueKey ~= '' then
+		redis.call('DEL', oldValueKey)
+	end
+
+	redis.call('SET', valueKey, value, 'EX', ttl)
+	redis.call('SET', indexKey, valueKey, 'EX', ttl)
+	return 1
+`)
+
 func (s *Store) trySetIndexedRedis(indexKey, valueKey, value string, ttl time.Duration) bool {
 	if s.redisClient == nil {
 		return false
@@ -147,21 +163,13 @@ func (s *Store) trySetIndexedRedis(indexKey, valueKey, value string, ttl time.Du
 	ctx, cancel := context.WithTimeout(context.Background(), redisOpTimeout)
 	defer cancel()
 
-	oldValueKey, err := s.redisClient.Get(ctx, indexKey).Result()
-	if err == nil && oldValueKey != "" {
-		_ = s.redisClient.Del(ctx, oldValueKey).Err()
-	} else if err != nil && !errors.Is(err, redis.Nil) {
-		return false
+	ttlSeconds := int64(ttl.Seconds())
+	if ttlSeconds <= 0 {
+		ttlSeconds = 1
 	}
 
-	if err := s.redisClient.Set(ctx, valueKey, value, ttl).Err(); err != nil {
-		return false
-	}
-	if err := s.redisClient.Set(ctx, indexKey, valueKey, ttl).Err(); err != nil {
-		_ = s.redisClient.Del(ctx, valueKey).Err()
-		return false
-	}
-	return true
+	return setIndexedScript.Eval(ctx, s.redisClient, []string{indexKey},
+		valueKey, value, ttlSeconds).Err() == nil
 }
 
 func (s *Store) getRedis(key string) (string, bool, error) {
