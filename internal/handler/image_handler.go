@@ -59,10 +59,14 @@ func (h *ImageHandler) GetMyImages(c *gin.Context) {
 	}
 	idStr := c.Query("id")
 
-	page, _ := strconv.Atoi(pageStr)
-	pageSize, _ := strconv.Atoi(pageSizeStr)
-	if page < 1 {
+	page, err := strconv.Atoi(pageStr)
+	if err != nil || page < 1 {
 		page = 1
+	}
+	pageSize, err := strconv.Atoi(pageSizeStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "page_size 参数格式错误"})
+		return
 	}
 	if pageSize < 1 {
 		pageSize = 10
