@@ -53,9 +53,10 @@ func (s *Store) RedisKey(parts ...string) string {
 	return key
 }
 
-// Set 先尝试写 Redis，失败时自动回退本地内存。
+// Set 根据启动时确定的模式写入缓存，不做运行时切换。
 func (s *Store) Set(key, value string, ttl time.Duration) {
-	if s.trySetRedis(key, value, ttl) {
+	if s.redisClient != nil {
+		s.trySetRedis(key, value, ttl)
 		return
 	}
 	s.setLocal(key, value, ttl)
@@ -63,42 +64,40 @@ func (s *Store) Set(key, value string, ttl time.Duration) {
 
 // SetIndexed 设置 indexKey->valueKey 与 valueKey->value，并保证 index 只有一个当前值。
 func (s *Store) SetIndexed(indexKey, valueKey, value string, ttl time.Duration) {
-	if s.trySetIndexedRedis(indexKey, valueKey, value, ttl) {
+	if s.redisClient != nil {
+		s.trySetIndexedRedis(indexKey, valueKey, value, ttl)
 		return
 	}
 	s.setIndexedLocal(indexKey, valueKey, value, ttl)
 }
 
-// Get 读取 value，优先 Redis，失败或未命中自动回退本地内存。
+// Get 读取 value，根据启动时确定的模式读取缓存。
 func (s *Store) Get(key string) (string, bool) {
-	if value, ok, err := s.getRedis(key); err == nil {
-		if ok {
-			return value, true
-		}
-	} else {
-		_ = err
+	if s.redisClient != nil {
+		value, ok, _ := s.getRedis(key)
+		return value, ok
 	}
 	return s.getLocal(key)
 }
 
-// GetAndDelete 获取并删除 key，优先 Redis，失败或未命中自动回退本地内存。
+// GetAndDelete 获取并删除 key，根据启动时确定的模式读取缓存。
 func (s *Store) GetAndDelete(key string) (string, bool) {
-	if value, ok, err := s.getDelRedis(key); err == nil {
-		if ok {
-			return value, true
-		}
-	} else {
-		_ = err
+	if s.redisClient != nil {
+		value, ok, _ := s.getDelRedis(key)
+		return value, ok
 	}
 	return s.getAndDeleteLocal(key)
 }
 
-// Delete 删除多个 key，Redis 与本地内存都执行删除。
+// Delete 删除多个 key，根据启动时确定的模式删除。
 func (s *Store) Delete(keys ...string) {
 	if len(keys) == 0 {
 		return
 	}
-	_ = s.delRedis(keys...)
+	if s.redisClient != nil {
+		_ = s.delRedis(keys...)
+		return
+	}
 	s.localMu.Lock()
 	defer s.localMu.Unlock()
 	for _, key := range keys {
@@ -106,14 +105,15 @@ func (s *Store) Delete(keys ...string) {
 	}
 }
 
-// CompareAndDeletePair 对一对关联缓存键执行“比较并删除”。
+// CompareAndDeletePair 对一对关联缓存键执行”比较并删除”。
 // 典型用法：valueKey 保存业务值，indexKey 保存 valueKey（或其标识）用于反向索引。
 // 参数顺序：indexKey, expectedIndexValue, valueKey, expectedValue。
 // 只有当 indexKey 的值等于 expectedIndexValue 且 valueKey 的值等于 expectedValue 时，
 // 才会原子删除这两个键并返回 true；否则返回 false。
-// 内部优先走 Redis WATCH 事务，Redis 不可判定时自动回退本地内存做同等语义校验。
+// 根据启动时确定的模式执行，Redis 不可判定时直接返回 false。
 func (s *Store) CompareAndDeletePair(indexKey, expectedIndexValue, valueKey, expectedValue string) bool {
-	if consumed, known := s.compareAndDeletePairRedis(indexKey, expectedIndexValue, valueKey, expectedValue); known {
+	if s.redisClient != nil {
+		consumed, _ := s.compareAndDeletePairRedis(indexKey, expectedIndexValue, valueKey, expectedValue)
 		return consumed
 	}
 	return s.compareAndDeletePairLocal(indexKey, expectedIndexValue, valueKey, expectedValue)

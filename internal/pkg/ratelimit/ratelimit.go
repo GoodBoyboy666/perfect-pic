@@ -15,7 +15,6 @@ import (
 
 const (
 	defaultSensitiveOperationInterval = 2 * time.Minute
-	redisFallbackLogInterval          = 1 * time.Minute
 	redisOpTimeout                    = time.Second
 	defaultRedisKeyPrefix             = "perfect_pic"
 )
@@ -30,12 +29,6 @@ type ipRateLimiter struct {
 type clientEntry struct {
 	limiter  *rate.Limiter
 	lastSeen time.Time
-}
-
-type redisFallbackLogState struct {
-	mu         sync.Mutex
-	degraded   bool
-	lastWarnAt time.Time
 }
 
 type Config struct {
@@ -58,8 +51,6 @@ type BaseRateLimiter struct {
 	redisClient *redis.Client
 	cfg         *Config
 }
-
-var redisFallbackLogStates sync.Map
 
 func NewTokenBucketLimiter(baseRateLimiter *BaseRateLimiter) *TokenBucketLimiter {
 	return &TokenBucketLimiter{baseRateLimiter: baseRateLimiter}
@@ -89,18 +80,17 @@ func (l *TokenBucketLimiter) Allow(
 		namespace = "rate"
 	}
 
+	if l.baseRateLimiter.redisClient != nil {
+		allowed, err := l.allowByRedisRateLimit(l.baseRateLimiter.redisClient, namespace, rpsKey, burstKey, ip, rps, burst)
+		if err != nil {
+			log.Printf("Redis 令牌桶限流失败，拒绝请求: %v", err)
+		}
+		return allowed
+	}
+
 	l.once.Do(func() {
 		l.local = newIPRateLimiter(rate.Limit(rps), burst)
 	})
-
-	if l.baseRateLimiter.redisClient != nil {
-		allowed, err := l.allowByRedisRateLimit(l.baseRateLimiter.redisClient, namespace, rpsKey, burstKey, ip, rps, burst)
-		if err == nil {
-			logRedisFallbackRecovered("令牌桶限流")
-			return allowed
-		}
-		logRedisFallbackDegraded("令牌桶限流", err)
-	}
 
 	scopeKey := namespace + ":" + rpsKey + ":" + burstKey + ":" + ip
 	localLimiter := l.local.getLimiter(scopeKey)
@@ -122,16 +112,15 @@ func (l *IntervalLimiter) Allow(ip, namespace string, interval time.Duration) bo
 		interval = defaultSensitiveOperationInterval
 	}
 
-	l.cleanupOnce.Do(l.startCleanupLoop)
-
 	if l.baseRateLimiter.redisClient != nil {
 		ok, err := l.allowByRedisInterval(l.baseRateLimiter.redisClient, namespace, ip, interval)
-		if err == nil {
-			logRedisFallbackRecovered("间隔限流")
-			return ok
+		if err != nil {
+			log.Printf("Redis 间隔限流失败，拒绝请求: %v", err)
 		}
-		logRedisFallbackDegraded("间隔限流", err)
+		return ok
 	}
+
+	l.cleanupOnce.Do(l.startCleanupLoop)
 
 	localKey := namespace + ":" + ip
 	if value, ok := l.requestTimes.Load(localKey); ok {
@@ -282,52 +271,6 @@ func (l *ipRateLimiter) cleanupLoop() {
 			return true
 		})
 	}
-}
-
-func getRedisFallbackLogState(scope string) *redisFallbackLogState {
-	state, _ := redisFallbackLogStates.LoadOrStore(scope, &redisFallbackLogState{})
-	if typedState, ok := state.(*redisFallbackLogState); ok {
-		return typedState
-	}
-
-	fallbackState := &redisFallbackLogState{}
-	redisFallbackLogStates.Store(scope, fallbackState)
-	return fallbackState
-}
-
-func logRedisFallbackDegraded(scope string, err error) {
-	state := getRedisFallbackLogState(scope)
-	now := time.Now()
-
-	state.mu.Lock()
-	defer state.mu.Unlock()
-
-	if !state.degraded {
-		state.degraded = true
-		state.lastWarnAt = now
-		log.Printf("⚠️ Redis %s 检查失败，已降级到内存限流（后续每 %s 最多记录一次）: %v", scope, redisFallbackLogInterval, err)
-		return
-	}
-
-	if now.Sub(state.lastWarnAt) >= redisFallbackLogInterval {
-		state.lastWarnAt = now
-		log.Printf("⚠️ Redis %s 仍不可用，继续使用内存限流: %v", scope, err)
-	}
-}
-
-func logRedisFallbackRecovered(scope string) {
-	state := getRedisFallbackLogState(scope)
-
-	state.mu.Lock()
-	defer state.mu.Unlock()
-
-	if !state.degraded {
-		return
-	}
-
-	state.degraded = false
-	state.lastWarnAt = time.Time{}
-	log.Printf("✅ Redis %s 已恢复，切回Redis 限流", scope)
 }
 
 func (b *BaseRateLimiter) buildRedisKey(parts ...string) string {
