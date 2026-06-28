@@ -11,6 +11,8 @@ import (
 )
 
 // GetImageList 获取图片列表
+//
+//nolint:gocyclo
 func (h *ImageHandler) GetImageList(c *gin.Context) {
 	pageStr := c.DefaultQuery("page", "1")
 	pageSizeStr := c.DefaultQuery("page_size", "10")
