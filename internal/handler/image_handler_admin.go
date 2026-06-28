@@ -16,6 +16,10 @@ func (h *ImageHandler) GetImageList(c *gin.Context) {
 	pageSizeStr := c.DefaultQuery("page_size", "10")
 	username := c.Query("username")
 	filename := c.Query("filename")
+	if len(filename) > 255 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "filename 参数过长"})
+		return
+	}
 	userIDStr := c.Query("user_id")
 	idStr := c.Query("id")
 

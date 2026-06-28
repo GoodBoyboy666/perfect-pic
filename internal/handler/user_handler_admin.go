@@ -16,6 +16,10 @@ func (h *UserHandler) GetUserList(c *gin.Context) {
 	pageStr := c.DefaultQuery("page", "1")
 	pageSizeStr := c.DefaultQuery("page_size", "10")
 	keyword := c.Query("keyword")
+	if len(keyword) > 255 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "keyword 参数过长"})
+		return
+	}
 	showDeleted := c.DefaultQuery("show_deleted", "false")
 	order := c.Query("order")
 

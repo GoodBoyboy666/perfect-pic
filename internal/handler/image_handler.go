@@ -53,6 +53,10 @@ func (h *ImageHandler) GetMyImages(c *gin.Context) {
 	pageStr := c.DefaultQuery("page", "1")
 	pageSizeStr := c.DefaultQuery("page_size", "10")
 	filename := c.Query("filename")
+	if len(filename) > 255 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "filename 参数过长"})
+		return
+	}
 	idStr := c.Query("id")
 
 	page, _ := strconv.Atoi(pageStr)
