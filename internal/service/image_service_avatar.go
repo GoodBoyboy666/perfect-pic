@@ -9,13 +9,17 @@ import (
 	"path/filepath"
 	commonpkg "perfect-pic-server/internal/common"
 	"perfect-pic-server/internal/pkg/pathpkg"
-	"strings"
 
 	"github.com/google/uuid"
 )
 
 // SaveUserAvatarFile 保存用户头像文件并返回新文件名。
 func (s *ImageService) SaveUserAvatarFile(userID uint, file *multipart.FileHeader) (string, error) {
+	valid, ext, err := s.ValidateImageFile(file)
+	if !valid {
+		return "", err
+	}
+
 	avatarRootAbs, storageDir, err := s.resolveUserAvatarDir(userID)
 	if err != nil {
 		return "", err
@@ -30,7 +34,6 @@ func (s *ImageService) SaveUserAvatarFile(userID uint, file *multipart.FileHeade
 		return "", commonpkg.NewInternalError("系统错误: 头像目录存在符号链接风险")
 	}
 
-	ext := strings.ToLower(filepath.Ext(file.Filename))
 	newFilename := uuid.New().String() + ext
 	dstPath, err := pathpkg.SecureJoin(storageDir, newFilename)
 	if err != nil {

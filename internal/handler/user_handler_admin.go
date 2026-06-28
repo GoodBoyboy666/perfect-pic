@@ -127,13 +127,6 @@ func (h *UserHandler) UpdateUserAvatar(c *gin.Context) {
 		return
 	}
 
-	valid, ext, err := h.imageService.ValidateImageFile(file)
-	if !valid {
-		httpx.WriteServiceError(c, err, "头像文件校验失败")
-		return
-	}
-	_ = ext
-
 	user, err := h.userService.GetUserByID(uint(id), true)
 	if err != nil {
 		httpx.WriteServiceError(c, err, "获取用户失败")

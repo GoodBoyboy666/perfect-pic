@@ -136,12 +136,6 @@ func (h *UserHandler) UpdateSelfAvatar(c *gin.Context) {
 		return
 	}
 
-	valid, ext, err := h.imageService.ValidateImageFile(file)
-	if !valid {
-		httpx.WriteServiceError(c, err, "头像文件校验失败")
-		return
-	}
-	_ = ext
 	uid, ok := userId.(uint)
 	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "获取用户ID失败"})
