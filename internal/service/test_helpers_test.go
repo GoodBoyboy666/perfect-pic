@@ -52,13 +52,13 @@ func setupTestDB(t *testing.T) *gorm.DB {
 	tokenService := jwtpkg.NewJWT(config.NewJWTConfig(staticConfig))
 	cacheStore := cache.NewStore(nil, config.NewCacheConfig(staticConfig))
 
-	authService := NewAuthService(dbConfig, tokenService)
-	userService := NewUserService(userStore, dbConfig, cacheStore, tokenService)
-	imageService := NewImageService(imageStore, dbConfig, staticConfig)
 	emailService := NewEmailService(dbConfig, pkgmail.NewMailer(), staticConfig)
 	captchaService := NewCaptchaService(dbConfig)
 	initService := NewInitService(systemStore, dbConfig)
-	passkeyService := NewPasskeyService(passkeyStore, dbConfig, cacheStore)
+	passkeyService := NewPasskeyService(passkeyStore, dbConfig, cacheStore, tokenService, userStore)
+	imageService := NewImageService(imageStore, dbConfig, staticConfig, userStore)
+	userService := NewUserService(userStore, dbConfig, cacheStore, tokenService, emailService, imageService, passkeyService)
+	authService := NewAuthService(dbConfig, tokenService, userStore, userService, emailService, initService)
 
 	testService = &Service{
 		dbConfig:       dbConfig,

@@ -8,9 +8,11 @@ import (
 	"net/mail"
 	"os"
 	"path/filepath"
+	commonpkg "perfect-pic-server/internal/common"
 	"perfect-pic-server/internal/config"
 	"perfect-pic-server/internal/consts"
 	"perfect-pic-server/internal/pkg/email"
+	"perfect-pic-server/internal/pkg/validator"
 	"regexp"
 	"strings"
 	"time"
@@ -375,4 +377,17 @@ func formatAddressHeader(input string) (string, string, error) {
 	}
 
 	return finalHeader, cleanAddr, nil
+}
+
+// AdminSendTestEmail 发送管理员测试邮件。
+func (s *EmailService) AdminSendTestEmail(toEmail string) error {
+	if ok, msg := validator.ValidateEmail(toEmail); !ok {
+		return commonpkg.NewValidationError(msg)
+	}
+
+	if err := s.SendTestEmail(toEmail); err != nil {
+		return commonpkg.NewInternalError("发送失败")
+	}
+
+	return nil
 }

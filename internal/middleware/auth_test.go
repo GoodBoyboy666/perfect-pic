@@ -87,7 +87,7 @@ func TestUserStatusCheck_BannedForbidden(t *testing.T) {
 	resetStatusCache()
 	statusCache := buildTestStatusCache()
 	userStore := repository.NewUserRepository(gdb)
-	userService := service.NewUserService(userStore, testService, statusCache, buildTestJWT())
+	userService := service.NewUserService(userStore, testService, statusCache, buildTestJWT(), nil, nil, nil)
 	authMiddleware := NewAuthMiddleware(buildTestJWT(), userService)
 
 	u := model.User{Username: "alice", Password: "x", Status: 2, Email: "a@example.com"}
@@ -118,7 +118,7 @@ func TestUserStatusCheck_NormalOK(t *testing.T) {
 	resetStatusCache()
 	statusCache := buildTestStatusCache()
 	userStore := repository.NewUserRepository(gdb)
-	userService := service.NewUserService(userStore, testService, statusCache, buildTestJWT())
+	userService := service.NewUserService(userStore, testService, statusCache, buildTestJWT(), nil, nil, nil)
 	authMiddleware := NewAuthMiddleware(buildTestJWT(), userService)
 
 	u := model.User{Username: "alice", Password: "x", Status: 1, Email: "a@example.com"}
@@ -147,7 +147,7 @@ func TestUserStatusCheck_ErrorBranches(t *testing.T) {
 	resetStatusCache()
 	statusCache := buildTestStatusCache()
 	userStore := repository.NewUserRepository(gdb)
-	userService := service.NewUserService(userStore, testService, statusCache, buildTestJWT())
+	userService := service.NewUserService(userStore, testService, statusCache, buildTestJWT(), nil, nil, nil)
 	authMiddleware := NewAuthMiddleware(buildTestJWT(), userService)
 
 	// 缺少 id
@@ -208,7 +208,7 @@ func TestAdminCheck(t *testing.T) {
 	resetStatusCache()
 	statusCache := buildTestStatusCache()
 	userStore := repository.NewUserRepository(gdb)
-	userService := service.NewUserService(userStore, testService, statusCache, buildTestJWT())
+	userService := service.NewUserService(userStore, testService, statusCache, buildTestJWT(), nil, nil, nil)
 	authMiddleware := NewAuthMiddleware(buildTestJWT(), userService)
 
 	normalUser := model.User{Username: "normal_user", Password: "x", Status: 1, Email: "normal@example.com", Admin: false}
@@ -279,7 +279,7 @@ func TestClearUserStatusCache_RemovesLocalCache(t *testing.T) {
 	resetStatusCache()
 	statusCache := buildTestStatusCache()
 	userStore := repository.NewUserRepository(gdb)
-	userService := service.NewUserService(userStore, testService, statusCache, buildTestJWT())
+	userService := service.NewUserService(userStore, testService, statusCache, buildTestJWT(), nil, nil, nil)
 
 	key := statusCache.RedisKey("auth", "user_status", "1")
 	statusCache.Set(key, "2", time.Minute)

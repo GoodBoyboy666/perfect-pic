@@ -54,7 +54,7 @@ func (h *UserHandler) UpdateSelfUsername(c *gin.Context) {
 		return
 	}
 
-	token, err := h.userUseCase.UpdateUsernameAndGenerateToken(uid, req.Username)
+	token, err := h.userService.UpdateUsernameAndGenerateToken(uid, req.Username)
 	if err != nil {
 		httpx.WriteServiceError(c, err, "更新失败")
 		return
@@ -86,7 +86,7 @@ func (h *UserHandler) UpdateSelfPassword(c *gin.Context) {
 		return
 	}
 
-	err := h.userUseCase.UpdatePasswordByOldPassword(uid, req.OldPassword, req.NewPassword)
+	err := h.userService.UpdatePasswordByOldPassword(uid, req.OldPassword, req.NewPassword)
 	if err != nil {
 		httpx.WriteServiceError(c, err, "更新失败")
 		return
@@ -114,7 +114,7 @@ func (h *UserHandler) RequestUpdateEmail(c *gin.Context) {
 		return
 	}
 
-	err := h.userUseCase.RequestEmailChange(uid, req.Password, req.NewEmail)
+	err := h.userService.RequestEmailChange(uid, req.Password, req.NewEmail)
 	if err != nil {
 		httpx.WriteServiceError(c, err, "生成验证链接失败")
 		return
@@ -154,7 +154,7 @@ func (h *UserHandler) UpdateSelfAvatar(c *gin.Context) {
 		return
 	}
 
-	newFilename, err := h.imageUseCase.UpdateUserAvatar(user, file)
+	newFilename, err := h.imageService.UpdateUserAvatar(user, file)
 	if err != nil {
 		log.Printf("UpdateUserAvatar error: %v", err)
 		httpx.WriteServiceError(c, err, "头像更新失败")
@@ -202,7 +202,7 @@ func (h *UserHandler) BeginPasskeyRegistration(c *gin.Context) {
 		return
 	}
 
-	sessionID, creation, err := h.passkeyUseCase.BeginPasskeyRegistration(uid)
+	sessionID, creation, err := h.passkeyService.BeginPasskeyRegistration(uid)
 	if err != nil {
 		httpx.WriteServiceError(c, err, "创建 Passkey 注册挑战失败")
 		return
@@ -234,7 +234,7 @@ func (h *UserHandler) FinishPasskeyRegistration(c *gin.Context) {
 		return
 	}
 
-	if err := h.passkeyUseCase.FinishPasskeyRegistration(uid, req.SessionID, req.Credential); err != nil {
+	if err := h.passkeyService.FinishPasskeyRegistration(uid, req.SessionID, req.Credential); err != nil {
 		httpx.WriteServiceError(c, err, "Passkey 绑定失败")
 		return
 	}

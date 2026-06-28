@@ -16,8 +16,6 @@ import (
 	"perfect-pic-server/internal/repository"
 	"perfect-pic-server/internal/router"
 	"perfect-pic-server/internal/service"
-	"perfect-pic-server/internal/usecase/admin"
-	"perfect-pic-server/internal/usecase/app"
 
 	"github.com/google/wire"
 )
@@ -34,8 +32,6 @@ func InitializeApplication() (*Application, error) {
 		pkgmail.NewMailer,
 		repository.RepoSet,
 		service.ServiceSet,
-		admin.AdminUseCaseSet,
-		app.UseCaseSet,
 		middleware.MiddlewareSet,
 		handler.HandlerSet,
 		router.NewRouter,

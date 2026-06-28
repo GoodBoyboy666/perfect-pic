@@ -2,9 +2,8 @@ package handler
 
 import (
 	"perfect-pic-server/internal/config"
+	repo "perfect-pic-server/internal/repository"
 	"perfect-pic-server/internal/service"
-	"perfect-pic-server/internal/usecase/admin"
-	"perfect-pic-server/internal/usecase/app"
 
 	"github.com/google/wire"
 )
@@ -12,107 +11,95 @@ import (
 type AuthHandler struct {
 	authService    *service.AuthService
 	captchaService *service.CaptchaService
-	authUseCase    *app.AuthUseCase
+	passkeyService *service.PasskeyService
 	initService    *service.InitService
 	dbConfig       *config.DBConfig
-	passkeyUseCase *app.PasskeyUseCase
 }
 
 type UserHandler struct {
-	userService       *service.UserService
-	userUseCase       *app.UserUseCase
-	userManageUseCase *admin.UserManageUseCase
-	imageService      *service.ImageService
-	imageUseCase      *app.ImageUseCase
-	authService       *service.AuthService
-	passkeyService    *service.PasskeyService
-	passkeyUseCase    *app.PasskeyUseCase
+	userService    *service.UserService
+	imageService   *service.ImageService
+	authService    *service.AuthService
+	passkeyService *service.PasskeyService
 }
 
 type ImageHandler struct {
 	imageService *service.ImageService
-	imageUseCase *app.ImageUseCase
 }
 
 type SystemHandler struct {
 	initService  *service.InitService
-	statUseCase  *admin.StatUseCase
 	dbConfig     *config.DBConfig
 	staticConfig *config.Config
 	userService  *service.UserService
+	imageStore   repo.ImageStore
+	userStore    repo.UserStore
 }
 
 type SettingsHandler struct {
 	settingsService *service.SettingsService
-	settingsUseCase *admin.SettingsUseCase
+	emailService    *service.EmailService
 }
 
 func NewAuthHandler(
 	authService *service.AuthService,
 	captchaService *service.CaptchaService,
-	authUseCase *app.AuthUseCase,
+	passkeyService *service.PasskeyService,
 	initService *service.InitService,
 	dbConfig *config.DBConfig,
-	passkeyUseCase *app.PasskeyUseCase,
 ) *AuthHandler {
 	return &AuthHandler{
 		authService:    authService,
 		captchaService: captchaService,
-		authUseCase:    authUseCase,
+		passkeyService: passkeyService,
 		initService:    initService,
 		dbConfig:       dbConfig,
-		passkeyUseCase: passkeyUseCase,
 	}
 }
 
 func NewUserHandler(
 	userService *service.UserService,
-	userUseCase *app.UserUseCase,
-	userManageUseCase *admin.UserManageUseCase,
 	imageService *service.ImageService,
-	imageUseCase *app.ImageUseCase,
 	authService *service.AuthService,
 	passkeyService *service.PasskeyService,
-	passkeyUseCase *app.PasskeyUseCase,
 ) *UserHandler {
 	return &UserHandler{
-		userService:       userService,
-		userUseCase:       userUseCase,
-		userManageUseCase: userManageUseCase,
-		imageService:      imageService,
-		imageUseCase:      imageUseCase,
-		authService:       authService,
-		passkeyService:    passkeyService,
-		passkeyUseCase:    passkeyUseCase,
+		userService:    userService,
+		imageService:   imageService,
+		authService:    authService,
+		passkeyService: passkeyService,
 	}
 }
 
-func NewImageHandler(imageService *service.ImageService, imageUseCase *app.ImageUseCase) *ImageHandler {
-	return &ImageHandler{imageService: imageService, imageUseCase: imageUseCase}
+func NewImageHandler(imageService *service.ImageService) *ImageHandler {
+	return &ImageHandler{imageService: imageService}
 }
 
 func NewSystemHandler(
 	initService *service.InitService,
-	statUseCase *admin.StatUseCase,
 	dbConfig *config.DBConfig,
 	staticConfig *config.Config,
-	userService *service.UserService) *SystemHandler {
+	userService *service.UserService,
+	imageStore repo.ImageStore,
+	userStore repo.UserStore,
+) *SystemHandler {
 	return &SystemHandler{
 		initService:  initService,
-		statUseCase:  statUseCase,
 		dbConfig:     dbConfig,
 		staticConfig: staticConfig,
 		userService:  userService,
+		imageStore:   imageStore,
+		userStore:    userStore,
 	}
 }
 
 func NewSettingsHandler(
 	settingsService *service.SettingsService,
-	settingsUseCase *admin.SettingsUseCase,
+	emailService *service.EmailService,
 ) *SettingsHandler {
 	return &SettingsHandler{
 		settingsService: settingsService,
-		settingsUseCase: settingsUseCase,
+		emailService:    emailService,
 	}
 }
 

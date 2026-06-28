@@ -13,8 +13,6 @@ import (
 	"perfect-pic-server/internal/repository"
 	"perfect-pic-server/internal/service"
 	"perfect-pic-server/internal/testutils"
-	adminuc "perfect-pic-server/internal/usecase/admin"
-	appuc "perfect-pic-server/internal/usecase/app"
 
 	"github.com/gin-gonic/gin"
 )
@@ -38,28 +36,20 @@ func TestInitRouter_RegistersCoreRoutes(t *testing.T) {
 	}
 	dbConfig.ClearCache()
 
-	authService := service.NewAuthService(dbConfig, tokenService)
 	captchaService := service.NewCaptchaService(dbConfig)
-	userService := service.NewUserService(userStore, dbConfig, cacheStore, tokenService)
-	imageService := service.NewImageService(imageStore, dbConfig, staticConfig)
 	emailService := service.NewEmailService(dbConfig, pkgmail.NewMailer(), staticConfig)
 	initService := service.NewInitService(systemStore, dbConfig)
-	passkeyService := service.NewPasskeyService(passkeyStore, dbConfig, cacheStore)
+	passkeyService := service.NewPasskeyService(passkeyStore, dbConfig, cacheStore, tokenService, userStore)
+	imageService := service.NewImageService(imageStore, dbConfig, staticConfig, userStore)
+	userService := service.NewUserService(userStore, dbConfig, cacheStore, tokenService, emailService, imageService, passkeyService)
+	authService := service.NewAuthService(dbConfig, tokenService, userStore, userService, emailService, initService)
 	settingsService := service.NewSettingsService(settingStore, dbConfig)
 
-	authUseCase := appuc.NewAuthUseCase(authService, userStore, userService, emailService, initService, dbConfig)
-	userUseCase := appuc.NewUserUseCase(authService, userService, userStore, emailService, dbConfig)
-	imageUseCase := appuc.NewImageUseCase(imageService, userService, userStore, staticConfig, dbConfig)
-	passkeyUseCase := appuc.NewPasskeyUseCase(passkeyService, passkeyStore, authService, userStore)
-	userManageUseCase := adminuc.NewUserManageUseCase(userService, imageService, passkeyService)
-	settingsUseCase := adminuc.NewSettingsUseCase(emailService)
-	statUseCase := adminuc.NewStatUseCase(imageStore, userStore)
-
-	authHandler := handler.NewAuthHandler(authService, captchaService, authUseCase, initService, dbConfig, passkeyUseCase)
-	systemHandler := handler.NewSystemHandler(initService, statUseCase, dbConfig, staticConfig, userService)
-	settingsHandler := handler.NewSettingsHandler(settingsService, settingsUseCase)
-	userHandler := handler.NewUserHandler(userService, userUseCase, userManageUseCase, imageService, imageUseCase, authService, passkeyService, passkeyUseCase)
-	imageHandler := handler.NewImageHandler(imageService, imageUseCase)
+	authHandler := handler.NewAuthHandler(authService, captchaService, passkeyService, initService, dbConfig)
+	systemHandler := handler.NewSystemHandler(initService, dbConfig, staticConfig, userService, imageStore, userStore)
+	settingsHandler := handler.NewSettingsHandler(settingsService, emailService)
+	userHandler := handler.NewUserHandler(userService, imageService, authService, passkeyService)
+	imageHandler := handler.NewImageHandler(imageService)
 	authMiddleware := middleware.NewAuthMiddleware(tokenService, userService)
 	rateLimitMiddleware := middleware.NewRateLimitMiddleware(
 		dbConfig,

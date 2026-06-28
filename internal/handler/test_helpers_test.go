@@ -11,8 +11,6 @@ import (
 	"perfect-pic-server/internal/repository"
 	"perfect-pic-server/internal/service"
 	"perfect-pic-server/internal/testutils"
-	adminuc "perfect-pic-server/internal/usecase/admin"
-	appuc "perfect-pic-server/internal/usecase/app"
 
 	"gorm.io/gorm"
 )
@@ -51,22 +49,14 @@ func setupTestDB(t *testing.T) {
 	tokenService := jwtpkg.NewJWT(config.NewJWTConfig(staticConfig))
 	cacheStore := cache.NewStore(nil, config.NewCacheConfig(staticConfig))
 
-	authService := service.NewAuthService(dbConfig, tokenService)
-	userService := service.NewUserService(userStore, dbConfig, cacheStore, tokenService)
-	imageService := service.NewImageService(imageStore, dbConfig, staticConfig)
 	emailService := service.NewEmailService(dbConfig, pkgmail.NewMailer(), staticConfig)
 	captchaService := service.NewCaptchaService(dbConfig)
 	initService := service.NewInitService(systemStore, dbConfig)
-	passkeyService := service.NewPasskeyService(passkeyStore, dbConfig, cacheStore)
+	passkeyService := service.NewPasskeyService(passkeyStore, dbConfig, cacheStore, tokenService, userStore)
+	imageService := service.NewImageService(imageStore, dbConfig, staticConfig, userStore)
+	userService := service.NewUserService(userStore, dbConfig, cacheStore, tokenService, emailService, imageService, passkeyService)
 	settingsService := service.NewSettingsService(settingStore, dbConfig)
-
-	authUseCase := appuc.NewAuthUseCase(authService, userStore, userService, emailService, initService, dbConfig)
-	userUseCase := appuc.NewUserUseCase(authService, userService, userStore, emailService, dbConfig)
-	imageUseCase := appuc.NewImageUseCase(imageService, userService, userStore, staticConfig, dbConfig)
-	passkeyUseCase := appuc.NewPasskeyUseCase(passkeyService, passkeyStore, authService, userStore)
-	userManageUseCase := adminuc.NewUserManageUseCase(userService, imageService, passkeyService)
-	settingsUseCase := adminuc.NewSettingsUseCase(emailService)
-	statUseCase := adminuc.NewStatUseCase(imageStore, userStore)
+	authService := service.NewAuthService(dbConfig, tokenService, userStore, userService, emailService, initService)
 
 	testService = dbConfig
 	testUserSvc = userService
@@ -82,10 +72,10 @@ func setupTestDB(t *testing.T) {
 	testService.ClearCache()
 
 	testHandler = &compositeHandler{
-		AuthHandler:     NewAuthHandler(authService, captchaService, authUseCase, initService, dbConfig, passkeyUseCase),
-		UserHandler:     NewUserHandler(userService, userUseCase, userManageUseCase, imageService, imageUseCase, authService, passkeyService, passkeyUseCase),
-		ImageHandler:    NewImageHandler(imageService, imageUseCase),
-		SystemHandler:   NewSystemHandler(initService, statUseCase, dbConfig, staticConfig, userService),
-		SettingsHandler: NewSettingsHandler(settingsService, settingsUseCase),
+		AuthHandler:     NewAuthHandler(authService, captchaService, passkeyService, initService, dbConfig),
+		UserHandler:     NewUserHandler(userService, imageService, authService, passkeyService),
+		ImageHandler:    NewImageHandler(imageService),
+		SystemHandler:   NewSystemHandler(initService, dbConfig, staticConfig, userService, imageStore, userStore),
+		SettingsHandler: NewSettingsHandler(settingsService, emailService),
 	}
 }

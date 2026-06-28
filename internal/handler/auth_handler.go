@@ -21,7 +21,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	token, err := h.authUseCase.LoginUser(req.Username, req.Password)
+	token, err := h.authService.LoginUser(req.Username, req.Password)
 	if err != nil {
 		httpx.WriteServiceError(c, err, "登录失败，请稍后重试")
 		return
@@ -45,7 +45,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	if err := h.authUseCase.RegisterUser(req.Username, req.Password, req.Email); err != nil {
+	if err := h.authService.RegisterUser(req.Username, req.Password, req.Email); err != nil {
 		httpx.WriteServiceError(c, err, "注册失败，请稍后重试")
 		return
 	}
@@ -61,7 +61,7 @@ func (h *AuthHandler) EmailVerify(c *gin.Context) {
 	}
 	tokenString := req.Token
 
-	alreadyVerified, err := h.authUseCase.VerifyEmail(tokenString)
+	alreadyVerified, err := h.authService.VerifyEmail(tokenString)
 	if err != nil {
 		httpx.WriteServiceError(c, err, "验证失败，请稍后重试")
 		return
@@ -83,7 +83,7 @@ func (h *AuthHandler) EmailChangeVerify(c *gin.Context) {
 	}
 	tokenString := req.Token
 
-	if err := h.authUseCase.VerifyEmailChange(tokenString); err != nil {
+	if err := h.authService.VerifyEmailChange(tokenString); err != nil {
 		httpx.WriteServiceError(c, err, "邮箱修改失败，请稍后重试")
 		return
 	}
@@ -104,7 +104,7 @@ func (h *AuthHandler) RequestPasswordReset(c *gin.Context) {
 		return
 	}
 
-	if err := h.authUseCase.RequestPasswordReset(req.Email); err != nil {
+	if err := h.authService.RequestPasswordReset(req.Email); err != nil {
 		httpx.WriteServiceError(c, err, "生成重置链接失败，请稍后重试")
 		return
 	}
@@ -120,7 +120,7 @@ func (h *AuthHandler) ResetPassword(c *gin.Context) {
 		return
 	}
 
-	if err := h.authUseCase.ResetPassword(req.Token, req.NewPassword); err != nil {
+	if err := h.authService.ResetPassword(req.Token, req.NewPassword); err != nil {
 		httpx.WriteServiceError(c, err, "密码重置失败")
 		return
 	}
@@ -149,7 +149,7 @@ func (h *AuthHandler) BeginPasskeyLogin(c *gin.Context) {
 		return
 	}
 
-	sessionID, assertion, err := h.passkeyUseCase.BeginPasskeyLogin()
+	sessionID, assertion, err := h.passkeyService.BeginPasskeyLogin()
 	if err != nil {
 		httpx.WriteServiceError(c, err, "创建 Passkey 登录挑战失败")
 		return
@@ -169,7 +169,7 @@ func (h *AuthHandler) FinishPasskeyLogin(c *gin.Context) {
 		return
 	}
 
-	token, err := h.passkeyUseCase.FinishPasskeyLogin(req.SessionID, req.Credential)
+	token, err := h.passkeyService.FinishPasskeyLogin(req.SessionID, req.Credential)
 	if err != nil {
 		httpx.WriteServiceError(c, err, "Passkey 登录失败")
 		return

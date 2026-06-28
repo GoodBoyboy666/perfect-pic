@@ -310,7 +310,19 @@ func (s *ImageService) DeleteUserFiles(userID uint) error {
 // ProcessImageUpload 处理图片上传核心业务：校验、配额检查、入库。
 //
 //nolint:gocyclo
-func (s *ImageService) ProcessImageUpload(file *multipart.FileHeader, uid uint, usedSize int64, quota int64) (*model.Image, string, error) {
+func (s *ImageService) ProcessImageUpload(file *multipart.FileHeader, uid uint) (*model.Image, string, error) {
+	user, err := s.userStore.FindByID(uid)
+	if err != nil {
+		log.Printf("Get user error: %v\n", err)
+		return nil, "", commonpkg.NewInternalError("查询用户信息失败")
+	}
+
+	quota := s.dbConfig.GetDefaultStorageQuota()
+	if user.StorageQuota != nil {
+		quota = *user.StorageQuota
+	}
+	usedSize := user.StorageUsed
+
 	valid, ext, err := s.ValidateImageFile(file)
 	if !valid {
 		return nil, "", err
@@ -403,4 +415,47 @@ func (s *ImageService) ProcessImageUpload(file *multipart.FileHeader, uid uint, 
 	}
 
 	return &imageRecord, cfg.Upload.URLPrefix + relativePath, nil
+}
+
+// UpdateUserAvatar 更新用户头像。
+func (s *ImageService) UpdateUserAvatar(user *model.User, file *multipart.FileHeader) (string, error) {
+	newFilename, err := s.SaveUserAvatarFile(user.ID, file)
+	if err != nil {
+		return "", err
+	}
+
+	oldAvatar := user.Avatar
+	if err := s.userStore.UpdateAvatar(user, newFilename); err != nil {
+		s.removeAvatarFile(user.ID, newFilename, "Rollback new avatar file")
+		log.Printf("DB Update avatar error: %v\n", err)
+		return "", commonpkg.NewInternalError("系统错误: 数据库更新失败")
+	}
+
+	s.removeAvatarFile(user.ID, oldAvatar, "Old avatar remove")
+	return newFilename, nil
+}
+
+// RemoveUserAvatar 移除用户头像。
+func (s *ImageService) RemoveUserAvatar(user *model.User) error {
+	if user.Avatar == "" {
+		return nil
+	}
+
+	oldAvatar := user.Avatar
+	if err := s.userStore.ClearAvatar(user); err != nil {
+		log.Printf("DB Remove avatar error: %v\n", err)
+		return commonpkg.NewInternalError("系统错误: 移除头像失败")
+	}
+
+	s.removeAvatarFile(user.ID, oldAvatar, "Remove avatar file")
+	return nil
+}
+
+func (s *ImageService) removeAvatarFile(userID uint, filename string, action string) {
+	if filename == "" {
+		return
+	}
+	if err := s.DeleteUserAvatarFile(userID, filename); err != nil {
+		log.Printf("%s error: %v\n", action, err)
+	}
 }

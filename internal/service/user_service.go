@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"math"
 	commonpkg "perfect-pic-server/internal/common"
 	"perfect-pic-server/internal/consts"
@@ -411,4 +412,100 @@ func (s *UserService) CreateUser(input moduledto.CreateUserRequest, allowReserve
 	}
 
 	return &user, nil
+}
+
+// RequestEmailChange 发起邮箱修改流程并异步发送验证邮件。
+func (s *UserService) RequestEmailChange(userID uint, password, newEmail string) error {
+	if !s.emailService.EmailEnabled() {
+		return commonpkg.NewInternalError("系统未开启邮件服务，无法修改邮箱")
+	}
+	if ok, msg := validator.ValidateEmail(newEmail); !ok {
+		return commonpkg.NewValidationError(msg)
+	}
+
+	user, err := s.userStore.FindByID(userID)
+	if err != nil {
+		return commonpkg.NewInternalError("用户不存在")
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err != nil {
+		return commonpkg.NewForbiddenError("密码错误")
+	}
+
+	if user.Email == newEmail {
+		return commonpkg.NewValidationError("新邮箱不能与当前邮箱相同")
+	}
+
+	emailTaken, err := s.IsEmailTaken(newEmail, nil, true)
+	if err != nil {
+		return commonpkg.NewInternalError("检查邮箱占用失败")
+	}
+	if emailTaken {
+		return commonpkg.NewConflictError("该邮箱已被使用")
+	}
+
+	token, err := s.GenerateEmailChangeToken(user.ID, user.Email, newEmail)
+	if err != nil {
+		return commonpkg.NewInternalError("生成验证链接失败")
+	}
+
+	baseURL := s.dbConfig.GetString(consts.ConfigBaseURL)
+	if baseURL == "" {
+		baseURL = "http://localhost"
+	}
+	if len(baseURL) > 0 && baseURL[len(baseURL)-1] == '/' {
+		baseURL = baseURL[:len(baseURL)-1]
+	}
+	verifyURL := fmt.Sprintf("%s/auth/email-change-verify?token=%s", baseURL, token)
+
+	go func() {
+		_ = s.emailService.SendEmailChangeVerification(newEmail, user.Username, user.Email, newEmail, verifyURL)
+	}()
+
+	return nil
+}
+
+// UpdateUsernameAndGenerateToken 修改用户名并签发新登录令牌。
+func (s *UserService) UpdateUsernameAndGenerateToken(userID uint, username string) (string, error) {
+	if err := s.UpdateUser(userID, moduledto.UpdateUserRequest{Username: &username}, false); err != nil {
+		return "", err
+	}
+	user, err := s.userStore.FindByID(userID)
+	if err != nil {
+		return "", commonpkg.NewInternalError("更新失败")
+	}
+	return s.jwt.GenerateLoginToken(user.ID, user.Username, user.Admin)
+}
+
+// UpdateUserAdmin 管理员更新用户信息，允许使用保留用户名。
+func (s *UserService) UpdateUserAdmin(userID uint, req moduledto.UpdateUserRequest) error {
+	return s.UpdateUser(userID, req, true)
+}
+
+// AdminDeleteUser 删除用户。
+// hardDelete=true 时执行彻底删除；否则执行软删除并清理唯一字段占用。
+func (s *UserService) AdminDeleteUser(userID uint, hardDelete bool) error {
+	if hardDelete {
+		if err := s.imageService.DeleteUserFiles(userID); err != nil {
+			return commonpkg.NewInternalError("删除用户失败")
+		}
+		if err := s.passkeyService.DeletePasskeyCredentialsByUserID(userID); err != nil {
+			return commonpkg.NewInternalError("删除用户失败")
+		}
+		if err := s.HardDeleteUserWithImages(userID); err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return commonpkg.NewNotFoundError("用户不存在")
+			}
+			return commonpkg.NewInternalError("删除用户失败")
+		}
+		return nil
+	}
+
+	if err := s.SoftDeleteUser(userID, time.Now().Unix()); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return commonpkg.NewNotFoundError("用户不存在")
+		}
+		return commonpkg.NewInternalError("删除用户失败")
+	}
+	return nil
 }
