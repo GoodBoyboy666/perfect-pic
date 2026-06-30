@@ -20,7 +20,7 @@ WORKDIR /web
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
 # 复制依赖配置文件
-COPY web/package.json web/pnpm-lock.yaml ./
+COPY web/package.json web/pnpm-lock.yaml web/pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 
 # 复制前端的所有源码
