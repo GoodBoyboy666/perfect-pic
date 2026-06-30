@@ -14,6 +14,7 @@ type AuthHandler struct {
 	passkeyService *service.PasskeyService
 	initService    *service.InitService
 	dbConfig       *config.DBConfig
+	staticConfig   *config.Config
 }
 
 type UserHandler struct {
@@ -21,6 +22,7 @@ type UserHandler struct {
 	imageService   *service.ImageService
 	authService    *service.AuthService
 	passkeyService *service.PasskeyService
+	staticConfig   *config.Config
 }
 
 type ImageHandler struct {
@@ -47,6 +49,7 @@ func NewAuthHandler(
 	passkeyService *service.PasskeyService,
 	initService *service.InitService,
 	dbConfig *config.DBConfig,
+	staticConfig *config.Config,
 ) *AuthHandler {
 	return &AuthHandler{
 		authService:    authService,
@@ -54,6 +57,7 @@ func NewAuthHandler(
 		passkeyService: passkeyService,
 		initService:    initService,
 		dbConfig:       dbConfig,
+		staticConfig:   staticConfig,
 	}
 }
 
@@ -62,12 +66,14 @@ func NewUserHandler(
 	imageService *service.ImageService,
 	authService *service.AuthService,
 	passkeyService *service.PasskeyService,
+	staticConfig *config.Config,
 ) *UserHandler {
 	return &UserHandler{
 		userService:    userService,
 		imageService:   imageService,
 		authService:    authService,
 		passkeyService: passkeyService,
+		staticConfig:   staticConfig,
 	}
 }
 

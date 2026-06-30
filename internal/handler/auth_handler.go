@@ -5,6 +5,8 @@ import (
 	"perfect-pic-server/internal/common/httpx"
 	"perfect-pic-server/internal/consts"
 	moduledto "perfect-pic-server/internal/dto"
+	"perfect-pic-server/internal/pkg/csrf"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -27,10 +29,12 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"token":   token,
-		"message": "登录成功",
-	})
+	if err := h.setAuthCookies(c, token); err != nil {
+		httpx.WriteServiceError(c, err, "登录失败，请稍后重试")
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "登录成功"})
 }
 
 func (h *AuthHandler) Register(c *gin.Context) {
@@ -175,8 +179,23 @@ func (h *AuthHandler) FinishPasskeyLogin(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"token":   token,
-		"message": "登录成功",
-	})
+	if err := h.setAuthCookies(c, token); err != nil {
+		httpx.WriteServiceError(c, err, "Passkey 登录失败")
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "登录成功"})
+}
+
+// setAuthCookies 生成CSRF Token并同时设置JWT Cookie和CSRF Cookie。
+func (h *AuthHandler) setAuthCookies(c *gin.Context, jwtToken string) error {
+	csrfToken, err := csrf.GenerateToken()
+	if err != nil {
+		return err
+	}
+	maxAge := time.Duration(h.staticConfig.JWT.ExpirationHours) * time.Hour
+	secure := h.staticConfig.Server.Mode == "release"
+	httpx.SetJWTCookie(c, jwtToken, maxAge, secure)
+	httpx.SetCSRFCookie(c, csrfToken, maxAge, secure)
+	return nil
 }

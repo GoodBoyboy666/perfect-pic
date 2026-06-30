@@ -6,7 +6,9 @@ import (
 	"net/http"
 	"perfect-pic-server/internal/common/httpx"
 	moduledto "perfect-pic-server/internal/dto"
+	"perfect-pic-server/internal/pkg/csrf"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -60,10 +62,12 @@ func (h *UserHandler) UpdateSelfUsername(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"message": "用户名更新成功",
-		"token":   token,
-	})
+	if err := h.setAuthCookies(c, token); err != nil {
+		httpx.WriteServiceError(c, err, "更新失败")
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "用户名更新成功"})
 }
 
 // UpdateSelfPassword 修改自己的密码
@@ -321,4 +325,24 @@ func (h *UserHandler) UpdateSelfPasskeyName(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Passkey 名称更新成功"})
+}
+
+// Logout 清除认证Cookie并登出。
+func (h *UserHandler) Logout(c *gin.Context) {
+	httpx.ClearJWTCookie(c)
+	httpx.ClearCSRFCookie(c)
+	c.JSON(http.StatusOK, gin.H{"message": "已登出"})
+}
+
+// setAuthCookies 生成CSRF Token并同时设置JWT Cookie和CSRF Cookie。
+func (h *UserHandler) setAuthCookies(c *gin.Context, jwtToken string) error {
+	csrfToken, err := csrf.GenerateToken()
+	if err != nil {
+		return err
+	}
+	maxAge := time.Duration(h.staticConfig.JWT.ExpirationHours) * time.Hour
+	secure := h.staticConfig.Server.Mode == "release"
+	httpx.SetJWTCookie(c, jwtToken, maxAge, secure)
+	httpx.SetCSRFCookie(c, csrfToken, maxAge, secure)
+	return nil
 }

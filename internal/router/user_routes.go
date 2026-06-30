@@ -13,12 +13,14 @@ func registerUserRoutes(
 	userHandler *handler.UserHandler,
 	imageHandler *handler.ImageHandler,
 	authMiddleware *middleware.AuthMiddleware,
+	csrfMiddleware *middleware.CSRFMiddleware,
 	bodyLimitMiddleware *middleware.BodyLimitMiddleware,
 	rateLimitMiddleware *middleware.RateLimitMiddleware,
 ) {
 	userGroup := api.Group("/user")
 	userGroup.Use(authMiddleware.JWTAuth())
 	userGroup.Use(authMiddleware.UserStatusCheck())
+	userGroup.Use(csrfMiddleware.CSRFCheck())
 	bodyLimit := bodyLimitMiddleware.BodyLimitMiddleware()
 
 	// 修改用户名请求间隔：读取配置（秒）
@@ -49,6 +51,8 @@ func registerUserRoutes(
 	userGroup.DELETE("/images/batch", bodyLimit, imageHandler.BatchDeleteMyImages)
 	userGroup.DELETE("/images/:id", imageHandler.DeleteMyImage)
 	userGroup.GET("/images/count", userHandler.GetSelfImagesCount)
+
+	userGroup.POST("/logout", userHandler.Logout)
 
 	userGroup.GET("/ping", func(c *gin.Context) {
 		c.JSON(200, gin.H{"message": "pong with auth"})

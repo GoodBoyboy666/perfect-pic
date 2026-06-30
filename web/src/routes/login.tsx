@@ -55,16 +55,6 @@ function parsePasskeyStartPayload(payload: unknown) {
   }
 }
 
-function parseToken(payload: unknown): string | null {
-  const candidate = unwrapResponseData(payload)
-  if (!candidate) return null
-
-  const token = candidate.token
-  if (typeof token !== 'string' || token.trim() === '') return null
-
-  return token
-}
-
 function buildPasskeyStartBody(params: {
   username: string
   password: string
@@ -133,11 +123,10 @@ function LoginComponent() {
         password: credentials.password,
         ...captcha.getSubmitPayload(),
       })
-      // navigate is handled by useEffect
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : '登录失败'
       setError(message)
-      captcha.refresh() // Refresh captcha on failure
+      captcha.refresh()
     }
   }
 
@@ -158,7 +147,8 @@ function LoginComponent() {
       const { sessionId, assertionOptions } = parsePasskeyStartPayload(startRes)
       const credential = await runPasskeyAssertion(assertionOptions)
 
-      const finishRes = await fetchClient('/api/auth/passkey/login/finish', {
+      // Passkey登录成功，服务端通过Set-Cookie设置JWT和CSRF Token
+      await fetchClient('/api/auth/passkey/login/finish', {
         method: 'POST',
         body: {
           session_id: sessionId,
@@ -166,12 +156,6 @@ function LoginComponent() {
         },
       })
 
-      const token = parseToken(finishRes)
-      if (!token) {
-        throw new Error('登录失败：服务端未返回 token')
-      }
-
-      localStorage.setItem('token', token)
       await refreshUser()
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Passkey 登录失败'

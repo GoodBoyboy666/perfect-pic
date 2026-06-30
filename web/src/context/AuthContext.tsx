@@ -104,7 +104,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const res = await fetchClient('/api/user/profile')
       const parsedUser = parseUser(res)
       setUser(parsedUser)
-    } catch (error) {
+    } catch {
       setUser(null)
     } finally {
       setIsLoading(false)
@@ -113,22 +113,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback(
     async (formData: any) => {
-      const res: any = await fetchClient('/api/login', {
+      // 登录由服务端通过Set-Cookie设置JWT和CSRF Cookie，无需手动存储
+      await fetchClient('/api/login', {
         method: 'POST',
         body: formData,
       })
-      if (res && res.token) {
-        localStorage.setItem('token', res.token)
-      }
       await refreshUser()
     },
     [refreshUser],
   )
 
-  const logout = useCallback(() => {
-    localStorage.removeItem('token')
-    setUser(null)
-    window.location.href = '/login'
+  const logout = useCallback(async () => {
+    try {
+      await fetchClient('/api/user/logout', { method: 'POST' })
+    } catch {
+      // 即使请求失败也清除本地状态
+    } finally {
+      setUser(null)
+      window.location.href = '/login'
+    }
   }, [])
 
   useEffect(() => {

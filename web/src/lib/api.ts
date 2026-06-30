@@ -1,10 +1,25 @@
 import axios from 'axios'
 
 export const api = axios.create({
-  baseURL: '/', // Vite proxy will handle api redirects
+  baseURL: '/',
+  withCredentials: true,
 })
 
+function getCookie(name: string): string | null {
+  const match = document.cookie.match(
+    new RegExp('(?:^|; )' + name.replace(/([.$?*|{}()\[\]\\\/+^])/g, '\\$1') + '=([^;]*)'),
+  )
+  return match ? decodeURIComponent(match[1]) : null
+}
+
 api.interceptors.request.use((config) => {
+  // CSRF Token: 从Cookie读取XSRF-TOKEN，写入X-CSRF-Token Header
+  const csrfToken = getCookie('XSRF-TOKEN')
+  if (csrfToken) {
+    config.headers['X-CSRF-Token'] = csrfToken
+  }
+
+  // 兼容模式: 保留Authorization Header（API客户端模式）
   const token = localStorage.getItem('token')
   if (token) {
     config.headers.Authorization = `Bearer ${token}`

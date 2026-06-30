@@ -13,6 +13,7 @@ type Router struct {
 	rateLimitMiddleware       *middleware.RateLimitMiddleware
 	bodyLimitMiddleware       *middleware.BodyLimitMiddleware
 	securityHeadersMiddleware *middleware.SecurityHeadersMiddleware
+	csrfMiddleware            *middleware.CSRFMiddleware
 	authHandler               *handler.AuthHandler
 	systemHandler             *handler.SystemHandler
 	settingsHandler           *handler.SettingsHandler
@@ -25,6 +26,7 @@ func NewRouter(
 	rateLimitMiddleware *middleware.RateLimitMiddleware,
 	bodyLimitMiddleware *middleware.BodyLimitMiddleware,
 	securityHeadersMiddleware *middleware.SecurityHeadersMiddleware,
+	csrfMiddleware *middleware.CSRFMiddleware,
 	authHandler *handler.AuthHandler,
 	systemHandler *handler.SystemHandler,
 	settingsHandler *handler.SettingsHandler,
@@ -36,6 +38,7 @@ func NewRouter(
 		rateLimitMiddleware:       rateLimitMiddleware,
 		bodyLimitMiddleware:       bodyLimitMiddleware,
 		securityHeadersMiddleware: securityHeadersMiddleware,
+		csrfMiddleware:            csrfMiddleware,
 		authHandler:               authHandler,
 		systemHandler:             systemHandler,
 		settingsHandler:           settingsHandler,
@@ -56,6 +59,6 @@ func (rt *Router) Init(r *gin.Engine) {
 	registerPublicRoutes(api, rt.systemHandler)
 	registerSystemRoutes(api, authLimiter, rt.systemHandler, rt.bodyLimitMiddleware)
 	registerAuthRoutes(api, authLimiter, rt.authHandler, rt.rateLimitMiddleware, rt.bodyLimitMiddleware)
-	registerUserRoutes(api, rt.userHandler, rt.imageHandler, rt.authMiddleware, rt.bodyLimitMiddleware, rt.rateLimitMiddleware)
-	registerAdminRoutes(api, rt.systemHandler, rt.settingsHandler, rt.userHandler, rt.imageHandler, rt.authMiddleware, rt.bodyLimitMiddleware)
+	registerUserRoutes(api, rt.userHandler, rt.imageHandler, rt.authMiddleware, rt.csrfMiddleware, rt.bodyLimitMiddleware, rt.rateLimitMiddleware)
+	registerAdminRoutes(api, rt.systemHandler, rt.settingsHandler, rt.userHandler, rt.imageHandler, rt.authMiddleware, rt.csrfMiddleware, rt.bodyLimitMiddleware)
 }

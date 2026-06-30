@@ -39,15 +39,19 @@ func TestLoginHandler_SuccessAndUnauthorized(t *testing.T) {
 		t.Fatalf("期望 200，实际为 %d body=%s", w.Code, w.Body.String())
 	}
 
-	var okResp struct {
-		Token string `json:"token"`
+	// 登录成功：从 Set-Cookie 读取 JWT
+	var tokenCookie string
+	for _, ck := range w.Result().Cookies() {
+		if ck.Name == "jwt_token" {
+			tokenCookie = ck.Value
+			break
+		}
 	}
-	_ = json.Unmarshal(w.Body.Bytes(), &okResp)
-	if okResp.Token == "" {
-		t.Fatalf("期望得到 token")
+	if tokenCookie == "" {
+		t.Fatalf("期望 jwt_token cookie")
 	}
 	jwtService := jwt.NewJWT(config.NewJWTConfig(config.NewStaticConfig()))
-	if _, err := jwtService.ParseLoginToken(okResp.Token); err != nil {
+	if _, err := jwtService.ParseLoginToken(tokenCookie); err != nil {
 		t.Fatalf("令牌解析失败: %v", err)
 	}
 

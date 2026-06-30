@@ -40,10 +40,15 @@ func NewStaticCacheMiddleware(dbConfig *config.DBConfig) *StaticCacheMiddleware 
 	return &StaticCacheMiddleware{dbConfig: dbConfig}
 }
 
+func NewCSRFMiddleware() *CSRFMiddleware {
+	return &CSRFMiddleware{}
+}
+
 var MiddlewareSet = wire.NewSet(
 	NewAuthMiddleware,
 	NewBodyLimitMiddleware,
 	NewRateLimitMiddleware,
 	NewSecurityHeadersMiddleware,
 	NewStaticCacheMiddleware,
+	NewCSRFMiddleware,
 )

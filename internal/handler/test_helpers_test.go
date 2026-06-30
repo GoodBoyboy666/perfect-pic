@@ -72,8 +72,8 @@ func setupTestDB(t *testing.T) {
 	testService.ClearCache()
 
 	testHandler = &compositeHandler{
-		AuthHandler:     NewAuthHandler(authService, captchaService, passkeyService, initService, dbConfig),
-		UserHandler:     NewUserHandler(userService, imageService, authService, passkeyService),
+		AuthHandler:     NewAuthHandler(authService, captchaService, passkeyService, initService, dbConfig, staticConfig),
+		UserHandler:     NewUserHandler(userService, imageService, authService, passkeyService, staticConfig),
 		ImageHandler:    NewImageHandler(imageService),
 		SystemHandler:   NewSystemHandler(initService, dbConfig, staticConfig, userService, imageStore, userStore),
 		SettingsHandler: NewSettingsHandler(settingsService, emailService),

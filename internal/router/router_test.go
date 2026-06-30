@@ -45,10 +45,10 @@ func TestInitRouter_RegistersCoreRoutes(t *testing.T) {
 	authService := service.NewAuthService(dbConfig, tokenService, userStore, userService, emailService, initService)
 	settingsService := service.NewSettingsService(settingStore, dbConfig)
 
-	authHandler := handler.NewAuthHandler(authService, captchaService, passkeyService, initService, dbConfig)
+	authHandler := handler.NewAuthHandler(authService, captchaService, passkeyService, initService, dbConfig, staticConfig)
 	systemHandler := handler.NewSystemHandler(initService, dbConfig, staticConfig, userService, imageStore, userStore)
 	settingsHandler := handler.NewSettingsHandler(settingsService, emailService)
-	userHandler := handler.NewUserHandler(userService, imageService, authService, passkeyService)
+	userHandler := handler.NewUserHandler(userService, imageService, authService, passkeyService, staticConfig)
 	imageHandler := handler.NewImageHandler(imageService)
 	authMiddleware := middleware.NewAuthMiddleware(tokenService, userService)
 	rateLimitMiddleware := middleware.NewRateLimitMiddleware(
@@ -58,11 +58,13 @@ func TestInitRouter_RegistersCoreRoutes(t *testing.T) {
 	)
 	bodyLimitMiddleware := middleware.NewBodyLimitMiddleware(dbConfig)
 	securityHeadersMiddleware := middleware.NewSecurityHeadersMiddleware(dbConfig)
+	csrfMiddleware := middleware.NewCSRFMiddleware()
 	rt := NewRouter(
 		authMiddleware,
 		rateLimitMiddleware,
 		bodyLimitMiddleware,
 		securityHeadersMiddleware,
+		csrfMiddleware,
 		authHandler,
 		systemHandler,
 		settingsHandler,

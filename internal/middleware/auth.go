@@ -3,6 +3,7 @@ package middleware
 import (
 	"errors"
 	"net/http"
+	"perfect-pic-server/internal/common/httpx"
 	"perfect-pic-server/internal/pkg/jwt"
 	"perfect-pic-server/internal/service"
 	"strings"
@@ -24,30 +25,41 @@ func (m *AuthMiddleware) JWTAuth() gin.HandlerFunc {
 			return
 		}
 
-		// 获取请求头 Authorization
-		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "需要认证才能访问"})
-			c.Abort()
-			return
-		}
+		var tokenString string
+		var jwtSource string
 
-		// 检查格式是否为 "Bearer <token>"
-		parts := strings.SplitN(authHeader, " ", 2)
-		if len(parts) != 2 || parts[0] != "Bearer" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Token 格式错误"})
-			c.Abort()
-			return
+		// 优先从Cookie读取JWT
+		if cookieToken, err := c.Cookie(httpx.JWTCookieName); err == nil && cookieToken != "" {
+			tokenString = cookieToken
+			jwtSource = httpx.JwtSourceCookie
+		} else {
+			// 回退到Authorization Header（API客户端模式）
+			authHeader := c.GetHeader("Authorization")
+			if authHeader == "" {
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "需要认证才能访问"})
+				c.Abort()
+				return
+			}
+
+			parts := strings.SplitN(authHeader, " ", 2)
+			if len(parts) != 2 || parts[0] != "Bearer" {
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "Token 格式错误"})
+				c.Abort()
+				return
+			}
+			tokenString = parts[1]
+			jwtSource = httpx.JwtSourceHeader
 		}
 
 		//解析 Token
-		claims, err := m.jwt.ParseLoginToken(parts[1])
+		claims, err := m.jwt.ParseLoginToken(tokenString)
 		if err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Token 无效或已过期"})
 			c.Abort()
 			return
 		}
 
+		httpx.SetJwtSource(c, jwtSource)
 		c.Set("id", claims.ID)
 		c.Set("username", claims.Username)
 		c.Next()
