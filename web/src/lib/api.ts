@@ -6,8 +6,9 @@ export const api = axios.create({
 })
 
 function getCookie(name: string): string | null {
+  const escapedName = name.replace(/[\\]/g, '\\$&')
   const match = document.cookie.match(
-    new RegExp('(?:^|; )' + name.replace(/([.$?*|{}()\[\]\\\/+^])/g, '\\$1') + '=([^;]*)'),
+    new RegExp('(?:^|; )' + escapedName + '=([^;]*)'),
   )
   return match ? decodeURIComponent(match[1]) : null
 }
