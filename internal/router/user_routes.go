@@ -20,6 +20,11 @@ func registerUserRoutes(
 	userGroup := api.Group("/user")
 	userGroup.Use(authMiddleware.JWTAuth())
 	userGroup.Use(authMiddleware.UserStatusCheck())
+
+	// Logout 豁免 CSRF 检查：如果 XSRF-TOKEN Cookie 丢失但 jwt_token 仍在，
+	// 用户应仍能通过 logout 接口清除 JWT Cookie，避免"无法登出"的死锁。
+	userGroup.POST("/logout", userHandler.Logout)
+
 	userGroup.Use(csrfMiddleware.CSRFCheck())
 	bodyLimit := bodyLimitMiddleware.BodyLimitMiddleware()
 
@@ -51,8 +56,6 @@ func registerUserRoutes(
 	userGroup.DELETE("/images/batch", bodyLimit, imageHandler.BatchDeleteMyImages)
 	userGroup.DELETE("/images/:id", imageHandler.DeleteMyImage)
 	userGroup.GET("/images/count", userHandler.GetSelfImagesCount)
-
-	userGroup.POST("/logout", userHandler.Logout)
 
 	userGroup.GET("/ping", func(c *gin.Context) {
 		c.JSON(200, gin.H{"message": "pong with auth"})
