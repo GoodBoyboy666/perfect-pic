@@ -35,6 +35,7 @@ var DefaultSettings = []model.Setting{
 	{Key: consts.ConfigRateLimitPasswordResetIntervalSeconds, Value: "120", Desc: "忘记密码请求最小间隔（秒）", Category: "速率限制"},
 	{Key: consts.ConfigRateLimitUsernameUpdateIntervalSeconds, Value: "120", Desc: "修改用户名请求最小间隔（秒）", Category: "速率限制"},
 	{Key: consts.ConfigRateLimitEmailUpdateIntervalSeconds, Value: "120", Desc: "修改邮箱请求最小间隔（秒）", Category: "速率限制"},
+	{Key: consts.ConfigRateLimitTokenVerifyIntervalSeconds, Value: "5", Desc: "Token 校验与密码修改最小间隔（秒）", Category: "速率限制"},
 	{Key: consts.ConfigMaxRequestBodySize, Value: "2", Desc: "非文件上传接口最大请求体限制 (MB)", Category: "服务"},
 	{Key: consts.ConfigStaticCacheControl, Value: "public, max-age=31536000", Desc: "静态资源缓存设置 (Cache-Control)", Category: "服务"},
 	{Key: consts.ConfigCaptchaProvider, Value: "image", Desc: "验证码提供方（空=关闭, image, turnstile, recaptcha, hcaptcha, geetest）", Category: "验证码"},

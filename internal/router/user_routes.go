@@ -29,6 +29,9 @@ func registerUserRoutes(
 	uploadLimiter := rateLimitMiddleware.RateLimit(consts.ConfigRateLimitUploadRPS, consts.ConfigRateLimitUploadBurst)
 	uploadBodyLimit := bodyLimitMiddleware.UploadBodyLimitMiddleware()
 
+	// 修改密码请求间隔：读取配置（秒）
+	passwordLimiter := rateLimitMiddleware.IntervalRate(consts.ConfigRateLimitTokenVerifyIntervalSeconds)
+
 	userGroup.GET("/profile", userHandler.GetSelfInfo)
 	userGroup.GET("/passkeys", userHandler.ListSelfPasskeys)
 	userGroup.DELETE("/passkeys/:id", userHandler.DeleteSelfPasskey)
@@ -36,7 +39,7 @@ func registerUserRoutes(
 	userGroup.POST("/passkeys/register/start", bodyLimit, userHandler.BeginPasskeyRegistration)
 	userGroup.POST("/passkeys/register/finish", bodyLimit, userHandler.FinishPasskeyRegistration)
 	userGroup.PATCH("/username", bodyLimit, usernameLimiter, userHandler.UpdateSelfUsername)
-	userGroup.PATCH("/password", bodyLimit, userHandler.UpdateSelfPassword)
+	userGroup.PATCH("/password", bodyLimit, passwordLimiter, userHandler.UpdateSelfPassword)
 	userGroup.POST("/email", bodyLimit, emailLimiter, userHandler.RequestUpdateEmail)
 
 	userGroup.PATCH("/avatar", uploadBodyLimit, uploadLimiter, userHandler.UpdateSelfAvatar)

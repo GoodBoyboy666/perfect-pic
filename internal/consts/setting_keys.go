@@ -68,6 +68,9 @@ const (
 	// ConfigRateLimitEmailUpdateIntervalSeconds 修改邮箱请求最小间隔（秒）
 	ConfigRateLimitEmailUpdateIntervalSeconds = "rate_limit_email_update_interval_seconds"
 
+	// ConfigRateLimitTokenVerifyIntervalSeconds Token 校验与密码修改最小间隔（秒）
+	ConfigRateLimitTokenVerifyIntervalSeconds = "rate_limit_token_verify_interval_seconds"
+
 	// ConfigMaxRequestBodySize 最大API请求体大小 (MB, 排除文件上传)
 	ConfigMaxRequestBodySize = "max_request_body_size"
 

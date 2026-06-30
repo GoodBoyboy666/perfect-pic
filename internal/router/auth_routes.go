@@ -22,13 +22,15 @@ func registerAuthRoutes(
 	api.POST("/auth/passkey/login/start", bodyLimit, authLimiter, h.BeginPasskeyLogin)
 	api.POST("/auth/passkey/login/finish", bodyLimit, authLimiter, h.FinishPasskeyLogin)
 
-	api.POST("/auth/email-verify", bodyLimit, h.EmailVerify)
-	api.POST("/auth/email-change-verify", bodyLimit, h.EmailChangeVerify)
+	// Token 校验间隔：默认 5 秒
+	tokenVerifyLimiter := rateLimitMiddleware.IntervalRate(consts.ConfigRateLimitTokenVerifyIntervalSeconds)
+	// 密码重置请求间隔：默认 120 秒
+	resetRequestLimiter := rateLimitMiddleware.IntervalRate(consts.ConfigRateLimitPasswordResetIntervalSeconds)
 
-	// 重置密码请求间隔：读取配置（秒）
-	resetLimiter := rateLimitMiddleware.IntervalRate(consts.ConfigRateLimitPasswordResetIntervalSeconds)
-	api.POST("/auth/password/reset/request", bodyLimit, resetLimiter, h.RequestPasswordReset)
-	api.POST("/auth/password/reset", bodyLimit, h.ResetPassword)
+	api.POST("/auth/email-verify", bodyLimit, tokenVerifyLimiter, h.EmailVerify)
+	api.POST("/auth/email-change-verify", bodyLimit, tokenVerifyLimiter, h.EmailChangeVerify)
+	api.POST("/auth/password/reset/request", bodyLimit, resetRequestLimiter, h.RequestPasswordReset)
+	api.POST("/auth/password/reset", bodyLimit, tokenVerifyLimiter, h.ResetPassword)
 
 	api.GET("/register", h.GetRegisterState)
 	api.GET("/captcha", h.GetCaptcha)
