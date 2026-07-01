@@ -1,4 +1,11 @@
-import { Link, Outlet, createFileRoute, redirect } from '@tanstack/react-router'
+import {
+  Link,
+  Outlet,
+  createFileRoute,
+  redirect,
+  useNavigate,
+} from '@tanstack/react-router'
+import { useEffect } from 'react'
 import {
   Images,
   LayoutDashboard,
@@ -28,7 +35,8 @@ import {
 
 export const Route = createFileRoute('/_user')({
   beforeLoad: ({ context }) => {
-    if (!context.auth.isLoading && !context.auth.user) {
+    if (context.auth.isLoading) return
+    if (!context.auth.user) {
       throw redirect({
         to: '/login',
       })
@@ -40,6 +48,13 @@ export const Route = createFileRoute('/_user')({
 function UserLayout() {
   const { user, logout, isLoading } = useAuth()
   const { siteInfo } = useSite()
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    if (!isLoading && !user) {
+      navigate({ to: '/login' })
+    }
+  }, [user, isLoading, navigate])
 
   if (isLoading) {
     return (
@@ -47,6 +62,10 @@ function UserLayout() {
         Loading...
       </div>
     )
+  }
+
+  if (!user) {
+    return null
   }
 
   return (
@@ -65,7 +84,7 @@ function UserLayout() {
                       {siteInfo.site_name}
                     </span>
                     <span className="truncate text-xs">
-                      欢迎, {user?.username}
+                      欢迎, {user.username}
                     </span>
                   </div>
                 </Link>
@@ -136,7 +155,7 @@ function UserLayout() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
 
-                {user?.admin && (
+                {user.admin && (
                   <>
                     <Separator className="my-2" />
                     <SidebarMenuItem>

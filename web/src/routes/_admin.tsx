@@ -1,4 +1,11 @@
-import { Link, Outlet, createFileRoute, redirect } from '@tanstack/react-router'
+import {
+  Link,
+  Outlet,
+  createFileRoute,
+  redirect,
+  useNavigate,
+} from '@tanstack/react-router'
+import { useEffect } from 'react'
 import {
   ArrowLeft,
   Image as ImageIcon,
@@ -27,12 +34,10 @@ import {
 
 export const Route = createFileRoute('/_admin')({
   beforeLoad: ({ context }) => {
-    if (
-      !context.auth.isLoading &&
-      (!context.auth.user || !context.auth.user.admin)
-    ) {
+    if (context.auth.isLoading) return
+    if (!context.auth.user || !context.auth.user.admin) {
       throw redirect({
-        to: '/login', // Or a 403 page
+        to: '/login',
       })
     }
   },
@@ -40,7 +45,14 @@ export const Route = createFileRoute('/_admin')({
 })
 
 function AdminLayout() {
-  const { logout, isLoading } = useAuth()
+  const { user, isLoading, logout } = useAuth()
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    if (!isLoading && (!user || !user.admin)) {
+      navigate({ to: '/login' })
+    }
+  }, [user, isLoading, navigate])
 
   if (isLoading) {
     return (
@@ -48,6 +60,10 @@ function AdminLayout() {
         Loading...
       </div>
     )
+  }
+
+  if (!user || !user.admin) {
+    return null
   }
 
   return (
