@@ -16,10 +16,11 @@ ARG GIT_COMMIT
 
 WORKDIR /web
 
-# 启用 pnpm
-RUN corepack enable && corepack prepare pnpm@latest --activate
+# 启用 corepack，pnpm 版本由 web/package.json 的 packageManager 字段固定
+ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+RUN corepack enable
 
-# 复制依赖配置文件
+# 复制依赖配置文件（package.json 中的 packageManager 决定下方使用的 pnpm 版本）
 COPY web/package.json web/pnpm-lock.yaml web/pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 
