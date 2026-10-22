@@ -9,38 +9,36 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as RegisterRouteImport } from './routes/register'
-import { Route as LoginRouteImport } from './routes/login'
-import { Route as InitRouteImport } from './routes/init'
-import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
-import { Route as UserRouteImport } from './routes/_user'
-import { Route as AdminRouteImport } from './routes/_admin'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as AuthResetPasswordRouteImport } from './routes/auth/reset-password'
-import { Route as AuthEmailVerifyRouteImport } from './routes/auth/email-verify'
+import { Route as AdminRouteImport } from './routes/_admin'
+import { Route as UserRouteImport } from './routes/_user'
+import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
+import { Route as InitRouteImport } from './routes/init'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as RegisterRouteImport } from './routes/register'
 import { Route as AuthEmailChangeVerifyRouteImport } from './routes/auth/email-change-verify'
-import { Route as UserDashboardUploadRouteImport } from './routes/_user/dashboard/upload'
-import { Route as UserDashboardProfileRouteImport } from './routes/_user/dashboard/profile'
-import { Route as UserDashboardOverviewRouteImport } from './routes/_user/dashboard/overview'
-import { Route as UserDashboardGalleryRouteImport } from './routes/_user/dashboard/gallery'
-import { Route as AdminAdminUsersRouteImport } from './routes/_admin/admin/users'
-import { Route as AdminAdminSettingsRouteImport } from './routes/_admin/admin/settings'
-import { Route as AdminAdminOverviewRouteImport } from './routes/_admin/admin/overview'
+import { Route as AuthEmailVerifyRouteImport } from './routes/auth/email-verify'
+import { Route as AuthResetPasswordRouteImport } from './routes/auth/reset-password'
 import { Route as AdminAdminImagesRouteImport } from './routes/_admin/admin/images'
+import { Route as AdminAdminOverviewRouteImport } from './routes/_admin/admin/overview'
+import { Route as AdminAdminSettingsRouteImport } from './routes/_admin/admin/settings'
+import { Route as AdminAdminUsersRouteImport } from './routes/_admin/admin/users'
+import { Route as UserDashboardGalleryRouteImport } from './routes/_user/dashboard/gallery'
+import { Route as UserDashboardOverviewRouteImport } from './routes/_user/dashboard/overview'
+import { Route as UserDashboardProfileRouteImport } from './routes/_user/dashboard/profile'
+import { Route as UserDashboardUploadRouteImport } from './routes/_user/dashboard/upload'
 
-const RegisterRoute = RegisterRouteImport.update({
-  id: '/register',
-  path: '/register',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const LoginRoute = LoginRouteImport.update({
-  id: '/login',
-  path: '/login',
+const AdminRoute = AdminRouteImport.update({
+  id: '/_admin',
   getParentRoute: () => rootRouteImport,
 } as any)
-const InitRoute = InitRouteImport.update({
-  id: '/init',
-  path: '/init',
+const UserRoute = UserRouteImport.update({
+  id: '/_user',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
@@ -48,27 +46,19 @@ const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
   path: '/forgot-password',
   getParentRoute: () => rootRouteImport,
 } as any)
-const UserRoute = UserRouteImport.update({
-  id: '/_user',
+const InitRoute = InitRouteImport.update({
+  id: '/init',
+  path: '/init',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AdminRoute = AdminRouteImport.update({
-  id: '/_admin',
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AuthResetPasswordRoute = AuthResetPasswordRouteImport.update({
-  id: '/auth/reset-password',
-  path: '/auth/reset-password',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AuthEmailVerifyRoute = AuthEmailVerifyRouteImport.update({
-  id: '/auth/email-verify',
-  path: '/auth/email-verify',
+const RegisterRoute = RegisterRouteImport.update({
+  id: '/register',
+  path: '/register',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthEmailChangeVerifyRoute = AuthEmailChangeVerifyRouteImport.update({
@@ -76,34 +66,19 @@ const AuthEmailChangeVerifyRoute = AuthEmailChangeVerifyRouteImport.update({
   path: '/auth/email-change-verify',
   getParentRoute: () => rootRouteImport,
 } as any)
-const UserDashboardUploadRoute = UserDashboardUploadRouteImport.update({
-  id: '/dashboard/upload',
-  path: '/dashboard/upload',
-  getParentRoute: () => UserRoute,
+const AuthEmailVerifyRoute = AuthEmailVerifyRouteImport.update({
+  id: '/auth/email-verify',
+  path: '/auth/email-verify',
+  getParentRoute: () => rootRouteImport,
 } as any)
-const UserDashboardProfileRoute = UserDashboardProfileRouteImport.update({
-  id: '/dashboard/profile',
-  path: '/dashboard/profile',
-  getParentRoute: () => UserRoute,
+const AuthResetPasswordRoute = AuthResetPasswordRouteImport.update({
+  id: '/auth/reset-password',
+  path: '/auth/reset-password',
+  getParentRoute: () => rootRouteImport,
 } as any)
-const UserDashboardOverviewRoute = UserDashboardOverviewRouteImport.update({
-  id: '/dashboard/overview',
-  path: '/dashboard/overview',
-  getParentRoute: () => UserRoute,
-} as any)
-const UserDashboardGalleryRoute = UserDashboardGalleryRouteImport.update({
-  id: '/dashboard/gallery',
-  path: '/dashboard/gallery',
-  getParentRoute: () => UserRoute,
-} as any)
-const AdminAdminUsersRoute = AdminAdminUsersRouteImport.update({
-  id: '/admin/users',
-  path: '/admin/users',
-  getParentRoute: () => AdminRoute,
-} as any)
-const AdminAdminSettingsRoute = AdminAdminSettingsRouteImport.update({
-  id: '/admin/settings',
-  path: '/admin/settings',
+const AdminAdminImagesRoute = AdminAdminImagesRouteImport.update({
+  id: '/admin/images',
+  path: '/admin/images',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminAdminOverviewRoute = AdminAdminOverviewRouteImport.update({
@@ -111,10 +86,35 @@ const AdminAdminOverviewRoute = AdminAdminOverviewRouteImport.update({
   path: '/admin/overview',
   getParentRoute: () => AdminRoute,
 } as any)
-const AdminAdminImagesRoute = AdminAdminImagesRouteImport.update({
-  id: '/admin/images',
-  path: '/admin/images',
+const AdminAdminSettingsRoute = AdminAdminSettingsRouteImport.update({
+  id: '/admin/settings',
+  path: '/admin/settings',
   getParentRoute: () => AdminRoute,
+} as any)
+const AdminAdminUsersRoute = AdminAdminUsersRouteImport.update({
+  id: '/admin/users',
+  path: '/admin/users',
+  getParentRoute: () => AdminRoute,
+} as any)
+const UserDashboardGalleryRoute = UserDashboardGalleryRouteImport.update({
+  id: '/dashboard/gallery',
+  path: '/dashboard/gallery',
+  getParentRoute: () => UserRoute,
+} as any)
+const UserDashboardOverviewRoute = UserDashboardOverviewRouteImport.update({
+  id: '/dashboard/overview',
+  path: '/dashboard/overview',
+  getParentRoute: () => UserRoute,
+} as any)
+const UserDashboardProfileRoute = UserDashboardProfileRouteImport.update({
+  id: '/dashboard/profile',
+  path: '/dashboard/profile',
+  getParentRoute: () => UserRoute,
+} as any)
+const UserDashboardUploadRoute = UserDashboardUploadRouteImport.update({
+  id: '/dashboard/upload',
+  path: '/dashboard/upload',
+  getParentRoute: () => UserRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
@@ -248,39 +248,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/register': {
-      id: '/register'
-      path: '/register'
-      fullPath: '/register'
-      preLoaderRoute: typeof RegisterRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/init': {
-      id: '/init'
-      path: '/init'
-      fullPath: '/init'
-      preLoaderRoute: typeof InitRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/forgot-password': {
-      id: '/forgot-password'
-      path: '/forgot-password'
-      fullPath: '/forgot-password'
-      preLoaderRoute: typeof ForgotPasswordRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/_user': {
-      id: '/_user'
-      path: ''
+    '/': {
+      id: '/'
+      path: '/'
       fullPath: '/'
-      preLoaderRoute: typeof UserRouteImport
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_admin': {
@@ -290,25 +262,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
+    '/_user': {
+      id: '/_user'
+      path: ''
       fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+      preLoaderRoute: typeof UserRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/auth/reset-password': {
-      id: '/auth/reset-password'
-      path: '/auth/reset-password'
-      fullPath: '/auth/reset-password'
-      preLoaderRoute: typeof AuthResetPasswordRouteImport
+    '/forgot-password': {
+      id: '/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/forgot-password'
+      preLoaderRoute: typeof ForgotPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/auth/email-verify': {
-      id: '/auth/email-verify'
-      path: '/auth/email-verify'
-      fullPath: '/auth/email-verify'
-      preLoaderRoute: typeof AuthEmailVerifyRouteImport
+    '/init': {
+      id: '/init'
+      path: '/init'
+      fullPath: '/init'
+      preLoaderRoute: typeof InitRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/register': {
+      id: '/register'
+      path: '/register'
+      fullPath: '/register'
+      preLoaderRoute: typeof RegisterRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth/email-change-verify': {
@@ -318,46 +304,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthEmailChangeVerifyRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_user/dashboard/upload': {
-      id: '/_user/dashboard/upload'
-      path: '/dashboard/upload'
-      fullPath: '/dashboard/upload'
-      preLoaderRoute: typeof UserDashboardUploadRouteImport
-      parentRoute: typeof UserRoute
+    '/auth/email-verify': {
+      id: '/auth/email-verify'
+      path: '/auth/email-verify'
+      fullPath: '/auth/email-verify'
+      preLoaderRoute: typeof AuthEmailVerifyRouteImport
+      parentRoute: typeof rootRouteImport
     }
-    '/_user/dashboard/profile': {
-      id: '/_user/dashboard/profile'
-      path: '/dashboard/profile'
-      fullPath: '/dashboard/profile'
-      preLoaderRoute: typeof UserDashboardProfileRouteImport
-      parentRoute: typeof UserRoute
+    '/auth/reset-password': {
+      id: '/auth/reset-password'
+      path: '/auth/reset-password'
+      fullPath: '/auth/reset-password'
+      preLoaderRoute: typeof AuthResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
     }
-    '/_user/dashboard/overview': {
-      id: '/_user/dashboard/overview'
-      path: '/dashboard/overview'
-      fullPath: '/dashboard/overview'
-      preLoaderRoute: typeof UserDashboardOverviewRouteImport
-      parentRoute: typeof UserRoute
-    }
-    '/_user/dashboard/gallery': {
-      id: '/_user/dashboard/gallery'
-      path: '/dashboard/gallery'
-      fullPath: '/dashboard/gallery'
-      preLoaderRoute: typeof UserDashboardGalleryRouteImport
-      parentRoute: typeof UserRoute
-    }
-    '/_admin/admin/users': {
-      id: '/_admin/admin/users'
-      path: '/admin/users'
-      fullPath: '/admin/users'
-      preLoaderRoute: typeof AdminAdminUsersRouteImport
-      parentRoute: typeof AdminRoute
-    }
-    '/_admin/admin/settings': {
-      id: '/_admin/admin/settings'
-      path: '/admin/settings'
-      fullPath: '/admin/settings'
-      preLoaderRoute: typeof AdminAdminSettingsRouteImport
+    '/_admin/admin/images': {
+      id: '/_admin/admin/images'
+      path: '/admin/images'
+      fullPath: '/admin/images'
+      preLoaderRoute: typeof AdminAdminImagesRouteImport
       parentRoute: typeof AdminRoute
     }
     '/_admin/admin/overview': {
@@ -367,12 +332,47 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminAdminOverviewRouteImport
       parentRoute: typeof AdminRoute
     }
-    '/_admin/admin/images': {
-      id: '/_admin/admin/images'
-      path: '/admin/images'
-      fullPath: '/admin/images'
-      preLoaderRoute: typeof AdminAdminImagesRouteImport
+    '/_admin/admin/settings': {
+      id: '/_admin/admin/settings'
+      path: '/admin/settings'
+      fullPath: '/admin/settings'
+      preLoaderRoute: typeof AdminAdminSettingsRouteImport
       parentRoute: typeof AdminRoute
+    }
+    '/_admin/admin/users': {
+      id: '/_admin/admin/users'
+      path: '/admin/users'
+      fullPath: '/admin/users'
+      preLoaderRoute: typeof AdminAdminUsersRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/_user/dashboard/gallery': {
+      id: '/_user/dashboard/gallery'
+      path: '/dashboard/gallery'
+      fullPath: '/dashboard/gallery'
+      preLoaderRoute: typeof UserDashboardGalleryRouteImport
+      parentRoute: typeof UserRoute
+    }
+    '/_user/dashboard/overview': {
+      id: '/_user/dashboard/overview'
+      path: '/dashboard/overview'
+      fullPath: '/dashboard/overview'
+      preLoaderRoute: typeof UserDashboardOverviewRouteImport
+      parentRoute: typeof UserRoute
+    }
+    '/_user/dashboard/profile': {
+      id: '/_user/dashboard/profile'
+      path: '/dashboard/profile'
+      fullPath: '/dashboard/profile'
+      preLoaderRoute: typeof UserDashboardProfileRouteImport
+      parentRoute: typeof UserRoute
+    }
+    '/_user/dashboard/upload': {
+      id: '/_user/dashboard/upload'
+      path: '/dashboard/upload'
+      fullPath: '/dashboard/upload'
+      preLoaderRoute: typeof UserDashboardUploadRouteImport
+      parentRoute: typeof UserRoute
     }
   }
 }

@@ -39,7 +39,7 @@ RUN pnpm build
 # 第二阶段：构建后端
 # ==========================================
 
-FROM golang:1.25-alpine AS backend-builder
+FROM golang:1.27-alpine AS backend-builder
 
 WORKDIR /app
 

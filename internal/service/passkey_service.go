@@ -120,7 +120,7 @@ func (s *PasskeyService) BeginPasskeyRegistration(userID uint) (string, *protoco
 		webauthn.WithCredentialParameters(s.GetPasskeyRecommendedCredentialParameters()),
 		webauthn.WithResidentKeyRequirement(protocol.ResidentKeyRequirementRequired),
 		webauthn.WithExclusions(webauthn.Credentials(passkeyUser.credentials).CredentialDescriptors()),
-		webauthn.WithExtensions(protocol.AuthenticationExtensions{"credProps": true}),
+		webauthn.WithExtensions(webauthn.WithExtensionCredProps()),
 	)
 	if err != nil {
 		return "", nil, commonpkg.NewInternalError("创建 Passkey 注册挑战失败")

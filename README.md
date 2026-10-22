@@ -1,6 +1,6 @@
 # Perfect Pic
 
-![Go](https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat&logo=go)
+![Go](https://img.shields.io/badge/Go-1.27+-00ADD8?style=flat&logo=go)
 ![Gin](https://img.shields.io/badge/Framework-Gin-00ADD8?style=flat)
 ![SQLite](https://img.shields.io/badge/Database-SQLite-003B57?style=flat&logo=sqlite)
 ![License](https://img.shields.io/badge/License-MIT-green?style=flat)
@@ -30,7 +30,7 @@
 
 ## 🛠️ 技术栈
 
-- **语言**: Go 1.25+ / TypeScript
+- **语言**: Go 1.27+ / TypeScript
 - **Web 框架**: [Gin](https://github.com/gin-gonic/gin) (后端) / React + Vite (前端)
 - **ORM**: [GORM](https://gorm.io/)
 - **数据库**: SQLite, MySQL, PostgreSQL
@@ -137,7 +137,7 @@ docker build -t perfect-pic:latest .
 
 ### 1. 环境要求
 
-- Go 1.25 或更高版本
+- Go 1.27 或更高版本
 - Node.js 24 或更高版本
 - pnpm 10 或更高版本
 
